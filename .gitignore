@@ -1,0 +1,14 @@
+.env
+.DS_Store
+.claude/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+
+#SSH keys
+*.pem
+*.keys
+id_rsa*
