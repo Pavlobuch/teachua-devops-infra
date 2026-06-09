@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Stage 4 – Terraform
+Stage 5 – Ansible
 
 ---
 
@@ -50,24 +50,27 @@ Stage 4 – Terraform
 * Configured environment variables
 * Validated full local stack
 
+### Stage 4 – Terraform
+
+* Defined AWS architecture and region
+* Set up AWS account and configured credentials
+* Initialized Terraform project structure
+* Created VPC and public subnet
+* Created Internet Gateway and route table
+* Created EC2 security group with SSH, HTTP, HTTPS, and Grafana access
+* Created IAM role with ECR ReadOnly and SSM policies
+* Created IAM instance profile
+* Created ECR repositories for frontend and backend images with lifecycle policies
+* Created EC2 instance with Ubuntu 22.04, gp3 encrypted volume, and IAM profile
+* Configured dynamic AMI lookup via data source
+* Configured consistent tagging strategy across all resources
+* Run Terraform plan and apply
+* Verified SSM access to EC2
+* Updated infrastructure documentation
+
 ---
 
 ## Planned Stages
-
-### Stage 4 – Terraform
-
-* Define AWS architecture and region
-* Set up AWS account and configure credentials
-* Initialize Terraform project structure
-* Create VPC and public subnet
-* Create Internet Gateway and route table
-* Create EC2 security group with SSH and HTTP access
-* Create IAM role and instance profile for EC2
-* Create ECR repositories for frontend and backend images
-* Create EC2 instance with attached IAM profile
-* Run Terraform plan and apply
-* Verify SSH or SSM access to EC2
-* Update infrastructure documentation
 
 ### Stage 5 – Ansible
 
@@ -104,9 +107,8 @@ Stage 4 – Terraform
 
 ## Next Steps
 
-1. Define AWS architecture and region
-2. Set up AWS account and configure credentials
-3. Initialize Terraform project structure
-4. Create VPC, subnet, and networking resources
-5. Create security group, IAM role, and ECR repositories
-6. Create EC2 instance and apply Terraform configuration
+1. Install Ansible
+2. Configure Ansible inventory using EC2 public IP from Terraform output
+3. Write playbook to install Docker on EC2
+4. Write playbook to install K3s prerequisites
+5. Validate server configuration
