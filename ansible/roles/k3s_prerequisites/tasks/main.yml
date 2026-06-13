@@ -1,0 +1,78 @@
+---
+- name: Install prerequisite packages
+  ansible.builtin.package:
+    name: "{{ k3s_prerequisites_packages }}"
+    state: present
+  become: true
+
+- name: Load k3s kernel modules
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ k3s_prerequisites_kernel_modules }}"
+  become: true
+
+- name: Persist k3s kernel modules across reboots
+  ansible.builtin.template:
+    src: k3s.conf
+    dest: /etc/modules-load.d/k3s.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Configure sysctl parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ k3s_prerequisites_sysctl_params | dict2items }}"
+  become: true
+
+- name: Check swap status
+  ansible.builtin.command: swapon --show
+  register: k3s_prerequisites_swap_status
+  changed_when: false
+
+- name: Disable swap
+  ansible.builtin.command: swapoff -a
+  when: k3s_prerequisites_swap_status.stdout != ""
+  become: true
+  changed_when: true
+
+- name: Disable swap in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+  become: true
+
+- name: Check loaded kernel modules
+  ansible.builtin.command: lsmod
+  register: k3s_prerequisites_loaded_modules
+  changed_when: false
+
+- name: Assert required kernel modules are loaded
+  ansible.builtin.assert:
+    that:
+      - "item in k3s_prerequisites_loaded_modules.stdout"
+    fail_msg: "Kernel module {{ item }} is not loaded"
+    success_msg: "Kernel module {{ item }} is loaded"
+  loop: "{{ k3s_prerequisites_kernel_modules }}"
+
+- name: Check sysctl parameters
+  ansible.builtin.command: "sysctl {{ item.key }}"
+  register: k3s_prerequisites_sysctl_check
+  changed_when: false
+  loop: "{{ k3s_prerequisites_sysctl_params | dict2items }}"
+
+- name: Assert sysctl parameters are correct
+  ansible.builtin.assert:
+    that:
+      - item.stdout == item.item.key ~ ' = ' ~ (item.item.value | string)
+    fail_msg: "{{ item.item.key }} value is incorrect"
+    success_msg: "{{ item.item.key }} value is correct"
+  loop: "{{ k3s_prerequisites_sysctl_check.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"

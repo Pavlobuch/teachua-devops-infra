@@ -1,0 +1,14 @@
+---
+k3s_prerequisites_packages:
+  - curl
+  - ca-certificates
+  - apt-transport-https
+
+k3s_prerequisites_kernel_modules:
+  - overlay
+  - br_netfilter
+
+k3s_prerequisites_sysctl_params:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1

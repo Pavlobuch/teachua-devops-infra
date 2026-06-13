@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Stage 5 – Ansible
+Stage 6 – Jenkins
 
 ---
 
@@ -68,15 +68,28 @@ Stage 5 – Ansible
 * Verified SSM access to EC2
 * Updated infrastructure documentation
 
+### Stage 5 – Ansible
+
+* Pinned and installed Ansible + ansible-lint
+* Created repository structure
+* Created ansible.cfg
+* Created inventory
+* Tested SSH connectivity with Ansible ping
+* Added group_vars / host_vars
+* Defined Vault / secrets strategy
+* Created playbook skeleton
+* Created common role
+* Lint → dry-run → execute → idempotency check (common)
+* Created Docker role
+* Lint → dry-run → execute → validate → idempotency check (Docker)
+* Created K3s prerequisites role
+* Created K3s role
+* Lint → dry-run → execute → validate → idempotency check (K3s)
+* Created Ansible documentation
+
 ---
 
 ## Planned Stages
-
-### Stage 5 – Ansible
-
-* Configure servers
-* Install required software
-* Automate provisioning
 
 ### Stage 6 – Jenkins
 
@@ -107,8 +120,13 @@ Stage 5 – Ansible
 
 ## Next Steps
 
-1. Install Ansible
-2. Configure Ansible inventory using EC2 public IP from Terraform output
-3. Write playbook to install Docker on EC2
-4. Write playbook to install K3s prerequisites
-5. Validate server configuration
+1. Install Jenkins locally
+2. Open Jenkins UI
+3. Install plugins
+4. Add credentials
+5. Create backend Jenkinsfile
+6. Test backend CI only
+7. Add Docker build + ECR push
+8. Repeat for frontend
+9. Add simple deploy stage
+10. Update jenkins.md and project-status.md
