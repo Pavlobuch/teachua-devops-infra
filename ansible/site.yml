@@ -1,0 +1,9 @@
+---
+- name: Provision EC2 instance
+  hosts: app
+  become: true
+
+  roles:
+    - common
+    - docker
+    - k3s_prerequisites

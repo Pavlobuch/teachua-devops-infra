@@ -1,0 +1,20 @@
+---
+docker_users:
+  - ubuntu
+
+
+docker_prerequisite_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_keyring_dir: /etc/apt/keyrings
+docker_gpg_key: /etc/apt/keyrings/docker.asc
+docker_repository_file: /etc/apt/sources.list.d/docker.list
