@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Stage 6 – Jenkins
+Stage 7 – Kubernetes
 
 ---
 
@@ -87,14 +87,33 @@ Stage 6 – Jenkins
 * Lint → dry-run → execute → validate → idempotency check (K3s)
 * Created Ansible documentation
 
+### Stage 6 – Jenkins (CI Foundation)
+
+* Installed Jenkins using Docker Compose
+* Created custom Jenkins Docker image
+* Added Docker CLI
+* Added AWS CLI
+* Added kubectl
+* Configured Jenkins persistent volume
+* Configured Docker socket access
+* Configured GitHub SSH authentication
+* Added GitHub host key verification
+* Created backend Jenkins pipeline
+* Implemented Docker-based backend build
+* Successfully built backend Docker image through Jenkins
+* Configured AWS ECR authentication in Jenkins
+* Pushed backend Docker image to ECR
+* Created frontend Jenkins pipeline
+* Pushed frontend Docker image to ECR
+
 ---
 
 ## Planned Stages
 
-### Stage 6 – Jenkins
+### Jenkins CI/CD Improvements
 
-* Build CI pipeline
-* Build CD pipeline
+* Implement automatic GitHub webhook trigger
+* Add deployment stage to K3s
 
 ### Stage 7 – Kubernetes
 
@@ -115,18 +134,34 @@ Stage 6 – Jenkins
 * Documentation review
 * Architecture review
 * Portfolio preparation
+* Replace plain-text Kubernetes Secrets (mysql-secret.yaml) with a proper secrets manager — options: AWS Secrets Manager via External Secrets Operator, Sealed Secrets, or Vault Agent Injector
 
 ---
 
 ## Next Steps
 
-1. Install Jenkins locally
-2. Open Jenkins UI
-3. Install plugins
-4. Add credentials
-5. Create backend Jenkinsfile
-6. Test backend CI only
-7. Add Docker build + ECR push
-8. Repeat for frontend
-9. Add simple deploy stage
-10. Update jenkins.md and project-status.md
+1. Terraform apply (create EC2 again)
+        ↓
+2. Update Ansible inventory
+        ↓
+3. Run Ansible
+        ↓
+4. Verify Docker and K3s
+        ↓
+5. Create Kubernetes directory structure
+        ↓
+6. Create Namespace
+        ↓
+7. Deploy MySQL
+        ↓
+8. Deploy Backend
+        ↓
+9. Deploy Frontend
+        ↓
+10. Configure Ingress
+        ↓
+11. Test application
+        ↓
+12. Add Jenkins deployment stage
+        ↓
+13. Add GitHub webhook
