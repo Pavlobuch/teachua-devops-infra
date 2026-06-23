@@ -183,9 +183,14 @@ Installs and validates K3s (single-node Kubernetes).
 | Download install script | `https://get.k3s.io` via `get_url` |
 | Run install script | Installs K3s binary and systemd service |
 | Enable k3s service | Starts and enables on boot |
+| Create `.kube` directory | `/home/ubuntu/.kube` with correct ownership |
+| Copy kubeconfig | `/etc/rancher/k3s/k3s.yaml` → `/home/ubuntu/.kube/config` |
+| Set KUBECONFIG env var | Adds `export KUBECONFIG=/home/ubuntu/.kube/config` to `~/.bashrc` |
 | Validate k3s version | Prints version output |
 | Check kubectl nodes | Runs `kubectl get nodes` |
 | Assert node is Ready | Fails playbook if node not healthy |
+
+**Note on kubeconfig:** K3s writes its kubeconfig to `/etc/rancher/k3s/k3s.yaml` (root-owned, 0600). The `kubectl` binary on K3s systems is a symlink to `k3s` and targets that path by default — it does not automatically fall back to `~/.kube/config`. The role copies the file and sets `KUBECONFIG` in `~/.bashrc` to make kubectl work for the `ubuntu` user. Run `source ~/.bashrc` in any existing SSH session after the playbook runs.
 
 ---
 

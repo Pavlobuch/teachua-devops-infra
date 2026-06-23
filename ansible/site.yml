@@ -7,3 +7,4 @@
     - common
     - docker
     - k3s_prerequisites
+    - k3s
