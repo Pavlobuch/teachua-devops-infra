@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'BACKEND_IMAGE_TAG', defaultValue: '', description: 'Backend Docker image tag from ECR')
-        string(name: 'FRONTEND_IMAGE_TAG', defaultValue: '', description: 'Frontend Docker image tag from ECR')
+        string(name: 'BACKEND_IMAGE_TAG', defaultValue: '', description: 'Backend Docker image tag from ECR (leave empty to deploy latest)')
+        string(name: 'FRONTEND_IMAGE_TAG', defaultValue: '', description: 'Frontend Docker image tag from ECR (leave empty to deploy latest)')
     }
 
     environment {
@@ -58,20 +58,47 @@ pipeline {
             }
         }
 
-        stage('Validate Parameters') {
+        stage('Prepare Image Tags') {
             steps {
-                script {
-                    if (!params.BACKEND_IMAGE_TAG?.trim()) {
-                        error('BACKEND_IMAGE_TAG parameter is required')
-                    }
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-jenkins-ecr',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    script {
+                        env.BACKEND_DEPLOY_TAG = params.BACKEND_IMAGE_TAG?.trim()
+                        env.FRONTEND_DEPLOY_TAG = params.FRONTEND_IMAGE_TAG?.trim()
 
-                    if (!params.FRONTEND_IMAGE_TAG?.trim()) {
-                        error('FRONTEND_IMAGE_TAG parameter is required')
+                        if (!env.BACKEND_DEPLOY_TAG) {
+                            env.BACKEND_DEPLOY_TAG = sh(
+                                script: '''
+                                    aws ecr describe-images \
+                                      --repository-name teachua-dev-backend \
+                                      --region $AWS_REGION \
+                                      --query 'sort_by(imageDetails[?imageTags!=null], &imagePushedAt)[-1].imageTags[0]' \
+                                      --output text
+                                ''',
+                                returnStdout: true
+                            ).trim()
+                        }
+
+                        if (!env.FRONTEND_DEPLOY_TAG) {
+                            env.FRONTEND_DEPLOY_TAG = sh(
+                                script: '''
+                                    aws ecr describe-images \
+                                      --repository-name teachua-dev-frontend \
+                                      --region $AWS_REGION \
+                                      --query 'sort_by(imageDetails[?imageTags!=null], &imagePushedAt)[-1].imageTags[0]' \
+                                      --output text
+                                ''',
+                                returnStdout: true
+                            ).trim()
+                        }
+
+                        echo "Backend deploy tag: ${env.BACKEND_DEPLOY_TAG}"
+                        echo "Frontend deploy tag: ${env.FRONTEND_DEPLOY_TAG}"
                     }
                 }
-
-                echo "Backend image tag: ${params.BACKEND_IMAGE_TAG}"
-                echo "Frontend image tag: ${params.FRONTEND_IMAGE_TAG}"
             }
         }
 
@@ -157,8 +184,8 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "kubectl set image deployment/backend backend=$BACKEND_IMAGE:$BACKEND_IMAGE_TAG -n $NAMESPACE && \
-                             kubectl set image deployment/frontend frontend=$FRONTEND_IMAGE:$FRONTEND_IMAGE_TAG -n $NAMESPACE"
+                            "kubectl set image deployment/backend backend=$BACKEND_IMAGE:$BACKEND_DEPLOY_TAG -n $NAMESPACE && \
+                             kubectl set image deployment/frontend frontend=$FRONTEND_IMAGE:$FRONTEND_DEPLOY_TAG -n $NAMESPACE"
                     '''
                 }
             }
