@@ -160,12 +160,11 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        PATCH_JSON='{"imagePullSecrets":[{"name":"ecr-registry-secret"}]}'
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl patch serviceaccount default \
-                                -n $NAMESPACE \
-                                -p '{\"imagePullSecrets\":[{\"name\":\"ecr-registry-secret\"}]}'"
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl patch serviceaccount default -n $NAMESPACE -p '$PATCH_JSON'"
                     '''
                 }
             }
