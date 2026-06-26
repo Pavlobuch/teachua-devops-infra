@@ -124,7 +124,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && kubectl create secret docker-registry ecr-registry-secret \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl create secret docker-registry ecr-registry-secret \
                                 --docker-server=$ECR_REGISTRY \
                                 --docker-username=AWS \
                                 --docker-password='$ECR_PASSWORD' \
@@ -147,7 +147,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && kubectl patch serviceaccount default \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl patch serviceaccount default \
                                 -n $NAMESPACE \
                                 -p '{\"imagePullSecrets\":[{\"name\":\"ecr-registry-secret\"}]}'"
                     '''
@@ -167,7 +167,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && cd ~/teachua-devops-infra && git pull && kubectl apply -R -f kubernetes/"
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && cd ~/teachua-devops-infra && git pull && kubectl apply -R -f kubernetes/"
                     '''
                 }
             }
@@ -185,7 +185,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && kubectl set image deployment/backend backend=$BACKEND_IMAGE:$BACKEND_DEPLOY_TAG -n $NAMESPACE && \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl set image deployment/backend backend=$BACKEND_IMAGE:$BACKEND_DEPLOY_TAG -n $NAMESPACE && \
                              kubectl set image deployment/frontend frontend=$FRONTEND_IMAGE:$FRONTEND_DEPLOY_TAG -n $NAMESPACE"
                     '''
                 }
@@ -204,7 +204,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && kubectl rollout status deployment/backend -n $NAMESPACE --timeout=180s && \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl rollout status deployment/backend -n $NAMESPACE --timeout=180s && \
                              kubectl rollout status deployment/frontend -n $NAMESPACE --timeout=180s"
                     '''
                 }
@@ -223,7 +223,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=$KUBECONFIG_PATH && kubectl get pods -n $NAMESPACE && \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl get pods -n $NAMESPACE && \
                              kubectl get svc -n $NAMESPACE && \
                              kubectl get ingress -n $NAMESPACE"
                     '''
