@@ -103,6 +103,22 @@ pipeline {
             }
         }
 
+        stage('Create Namespace') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'ec2-ssh-key',
+                    keyFileVariable: 'EC2_SSH_KEY'
+                )]) {
+                    sh '''
+                        ssh -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=no \
+                            "$EC2_USER@$EC2_HOST" \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -"
+                    '''
+                }
+            }
+        }
+
         stage('Create or Update ECR Pull Secret') {
             steps {
                 withCredentials([
