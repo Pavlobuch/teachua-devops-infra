@@ -182,7 +182,7 @@ pipeline {
                         ssh -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=no \
                             "$EC2_USER@$EC2_HOST" \
-                            "export KUBECONFIG=/home/ubuntu/.kube/config && cd ~/teachua-devops-infra && git pull && kubectl apply -R -f kubernetes/"
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && if [ -d ~/teachua-devops-infra ]; then cd ~/teachua-devops-infra && git pull; else git clone https://github.com/Pavlobuch/teachua-devops-infra.git ~/teachua-devops-infra && cd ~/teachua-devops-infra; fi && kubectl apply -R -f kubernetes/"
                     '''
                 }
             }
