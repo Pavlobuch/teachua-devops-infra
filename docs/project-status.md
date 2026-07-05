@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Stage 7 – Kubernetes
+Stage 8 – Monitoring
 
 ---
 
@@ -87,47 +87,64 @@ Stage 7 – Kubernetes
 * Lint → dry-run → execute → validate → idempotency check (K3s)
 * Created Ansible documentation
 
-### Stage 6 – Jenkins (CI Foundation)
+### Stage 6 – Jenkins
 
-* Installed Jenkins using Docker Compose
 * Created custom Jenkins Docker image
-* Added Docker CLI
-* Added AWS CLI
-* Added kubectl
-* Configured Jenkins persistent volume
-* Configured Docker socket access
+* Installed Docker CLI
+* Installed AWS CLI
+* Installed kubectl
+* Installed Git
 * Configured GitHub SSH authentication
-* Added GitHub host key verification
-* Created backend Jenkins pipeline
-* Implemented Docker-based backend build
-* Successfully built backend Docker image through Jenkins
-* Configured AWS ECR authentication in Jenkins
-* Pushed backend Docker image to ECR
-* Created frontend Jenkins pipeline
-* Pushed frontend Docker image to ECR
+* Configured AWS credentials
+* Created Backend CI pipeline
+* Created Frontend CI pipeline
+* Built backend Docker image
+* Built frontend Docker image
+* Tagged Docker images using Git commit SHA
+* Pushed backend image to AWS ECR
+* Pushed frontend image to AWS ECR
+
+### Stage 7 – Kubernetes
+
+* Created Kubernetes namespace
+* Created MySQL Deployment and Service
+* Created Backend Deployment and Service
+* Created Frontend Deployment and Service
+* Created ConfigMaps
+* Created Secrets
+* Created Ingress
+* Successfully deployed application to K3s
+* Configured automatic ECR authentication
+* Implemented rolling updates through Jenkins
+* Verified successful deployment
+* Application is accessible through Ingress
 
 ---
 
 ## Planned Stages
 
-### Jenkins CI/CD Improvements
-
-* Implement automatic GitHub webhook trigger
-* Add deployment stage to K3s
-
-### Stage 7 – Kubernetes
-
-* Deploy application to K3s
-* Configure Deployments
-* Configure Services
-* Configure Ingress
-
 ### Stage 8 – Monitoring
 
-* Deploy Prometheus
-* Deploy Grafana
-* Create dashboards
-* Configure alerts
+Full design in [monitoring.md](monitoring.md).
+
+* Update Terraform: second EC2, Monitoring security group, Splunk ports, remove stale Grafana rule, new outputs
+* Apply Terraform and verify both EC2 instances
+* Update Ansible inventory with `[app]` and `[monitoring]` groups
+* Create Ansible `splunk` role
+* Install Splunk on the monitoring EC2
+* Configure Splunk indexes (`teachua_app`, `teachua_k8s`, `teachua_infra`, `teachua_access`)
+* Configure Splunk HTTP Event Collector (HEC) and token
+* Create Fluent Bit Kubernetes manifests (`kubernetes/monitoring/`)
+* Deploy Fluent Bit DaemonSet to K3s and verify logs arrive in Splunk
+* Create Splunk dashboards
+* Add basic alerts (backend error rate, frontend 5xx, missing logs, CrashLoopBackOff)
+* Update Jenkins Infrastructure CD to apply monitoring manifests
+
+### CI/CD Improvements
+
+* Configure GitHub Webhooks
+* Trigger Jenkins pipelines automatically on push
+* Trigger deployment after successful CI builds
 
 ### Stage 9 – Finalization
 
@@ -140,28 +157,22 @@ Stage 7 – Kubernetes
 
 ## Next Steps
 
-1. Terraform apply (create EC2 again)
+1. Update Terraform for second EC2 + Monitoring security group
         ↓
-2. Update Ansible inventory
+2. Apply Terraform and verify both EC2 instances
         ↓
-3. Run Ansible
+3. Update Ansible inventory with `[app]` and `[monitoring]` groups
         ↓
-4. Verify Docker and K3s
+4. Create Ansible `splunk` role and install Splunk on the monitoring EC2
         ↓
-5. Create Kubernetes directory structure
+5. Configure Splunk indexes and HEC token
         ↓
-6. Create Namespace
+6. Create and deploy Fluent Bit manifests to K3s, verify logs arrive in Splunk
         ↓
-7. Deploy MySQL
+7. Create dashboards and alerts
         ↓
-8. Deploy Backend
+8. Update Jenkins Infrastructure CD to apply monitoring manifests
         ↓
-9. Deploy Frontend
-        ↓
-10. Configure Ingress
-        ↓
-11. Test application
-        ↓
-12. Add Jenkins deployment stage
-        ↓
-13. Add GitHub webhook
+9. Configure GitHub Webhooks for automatic pipeline triggers
+
+See [monitoring.md](monitoring.md) for full detail on each step.

@@ -10,6 +10,7 @@ Ansible automates EC2 server configuration. It runs locally on the developer mac
 | `docker` | Docker CE + Docker Compose plugin |
 | `k3s_prerequisites` | Kernel modules, sysctl params, swap disable |
 | `k3s` | K3s installation and validation |
+| `splunk` *(planned, Stage 8)* | Splunk Enterprise install, license, admin user, indexes, HEC — runs on the `monitoring` host only |
 
 ---
 
@@ -80,6 +81,26 @@ Get the EC2 public IP from Terraform output:
 ```bash
 cd devops-infra/terraform
 terraform output ec2_public_ip
+```
+
+**Planned, Stage 8:** a `[monitoring]` group is added once the second EC2 exists, so `site.yml` can target app and monitoring roles separately:
+
+```ini
+[app]
+<APP_EC2_PUBLIC_IP>
+
+[monitoring]
+<MONITORING_EC2_PUBLIC_IP>
+
+[app:vars]
+ansible_python_interpreter=/usr/bin/python3
+
+[monitoring:vars]
+ansible_python_interpreter=/usr/bin/python3
+```
+
+```bash
+terraform output monitoring_ec2_public_ip
 ```
 
 ---
@@ -194,6 +215,32 @@ Installs and validates K3s (single-node Kubernetes).
 
 ---
 
+### splunk *(planned, Stage 8)*
+
+Installs and configures Splunk Enterprise on the `monitoring` host. Full design in [monitoring.md](monitoring.md).
+
+```text
+roles/splunk/
+├── defaults/main.yml   ← version, download URL, admin user, index names, HEC port
+├── tasks/main.yml       ← task list
+├── handlers/main.yml    ← restart Splunk
+└── templates/           ← indexes.conf, inputs.conf (HEC), if managed as files
+```
+
+| Task | Purpose |
+|---|---|
+| Create `splunk` system user | Splunk should not run as root or `ubuntu` |
+| Check if Splunk is already installed | Skip download/install if present, same pattern as the `k3s` role |
+| Download Splunk Enterprise `.deb` package | Official Splunk download URL, version pinned in defaults |
+| Install the package | `ansible.builtin.apt` with `deb` local file |
+| Accept the Splunk license | `--accept-license` on first start |
+| Set admin username/password | Via `user-seed.conf`, not interactive prompts — avoids the setup wizard |
+| Enable Splunk boot-start | systemd service, enabled + started |
+| Start Splunk | `ansible.builtin.service` |
+| Validate Splunk is listening on 8000 | `ansible.builtin.wait_for` or `uri` module against the Web UI |
+
+---
+
 ## Running the Playbook
 
 All commands run from `devops-infra/ansible/`:
@@ -268,4 +315,4 @@ ansible-galaxy collection list
 
 - **Stage 6 (Jenkins):** Jenkins will call `ansible-playbook site.yml` as part of the CD pipeline after a new image is pushed to ECR.
 - **Stage 7 (Kubernetes):** The `k3s` role provisions the cluster. Kubernetes manifests are managed separately in `devops-infra/kubernetes/`.
-- **Stage 8 (Monitoring):** A future `monitoring` role will deploy Prometheus and Grafana onto the K3s cluster.
+- **Stage 8 (Monitoring):** The `splunk` role (above) installs and configures Splunk Enterprise on the dedicated `monitoring` host. Log shipping from K3s is handled by a Fluent Bit DaemonSet Kubernetes manifest (not an Ansible role) — see [monitoring.md](monitoring.md).

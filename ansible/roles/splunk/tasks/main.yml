@@ -1,0 +1,109 @@
+---
+- name: Create Splunk group
+  ansible.builtin.group:
+    name: "{{ splunk_group }}"
+    state: present
+  become: true
+
+- name: Create Splunk user
+  ansible.builtin.user:
+    name: "{{ splunk_user }}"
+    group: "{{ splunk_group }}"
+    system: true
+    shell: /bin/bash
+    home: "{{ splunk_install_dir }}"
+    create_home: false
+  become: true
+
+- name: Check if Splunk binary is present
+  ansible.builtin.stat:
+    path: "{{ splunk_install_dir }}/splunk"
+  register: splunk_binary
+  changed_when: false
+
+- name: Download Splunk binary
+  ansible.builtin.get_url:
+    url: "{{ splunk_download_url }}"
+    dest: "/tmp/{{ splunk_package }}"
+    mode: "0755"
+  when: not splunk_binary.stat.exists
+
+- name: Install Splunk package
+  ansible.builtin.apt:
+    deb: "/tmp/{{ splunk_package }}"
+    state: present
+  become: true
+  when: not splunk_binary.stat.exists
+
+- name: Set ownership of Splunk install directory
+  ansible.builtin.file:
+    path: "{{ splunk_install_dir }}"
+    owner: "{{ splunk_user }}"
+    group: "{{ splunk_group }}"
+    recurse: true
+  become: true
+
+- name: Deploy user-seed.conf for admin credentials
+  ansible.builtin.template:
+    src: user-seed.conf.j2
+    dest: "{{ splunk_install_dir }}/etc/system/local/user-seed.conf"
+    owner: "{{ splunk_user }}"
+    group: "{{ splunk_group }}"
+    mode: "0600"
+  become: true
+  when: not splunk_binary.stat.exists
+
+- name: Enable Splunk boot-start and accept license
+  ansible.builtin.command:
+    cmd: >-
+      {{ splunk_install_dir }}/bin/splunk enable boot-start
+      -user {{ splunk_user }}
+      --accept-license --answer-yes --no-prompt
+  become: true
+  when: not splunk_binary.stat.exists
+  changed_when: true
+
+- name: Ensure Splunk service is started and enabled
+  ansible.builtin.service:
+    name: splunk
+    state: started
+    enabled: true
+  become: true
+
+- name: Validate Splunk is listening on port {{ splunk_web_port }}
+  ansible.builtin.wait_for:
+    host: localhost
+    port: "{{ splunk_web_port }}"
+    timeout: 60
+    state: started
+
+- name: Configure Splunk indexes
+  ansible.builtin.template:
+    src: indexes.conf.j2
+    dest: /opt/splunk/etc/system/local/indexes.conf
+    owner: splunk
+    group: splunk
+    mode: "0644"
+  become: true
+  notify: Restart Splunk
+
+- name: Configure Splunk HEC
+  ansible.builtin.template:
+    src: inputs.conf.j2
+    dest: /opt/splunk/etc/system/local/inputs.conf
+    owner: splunk
+    group: splunk
+    mode: "0600"
+  become: true
+  notify: Restart Splunk
+
+- name: Deploy TeachUA Splunk monitoring app
+  ansible.builtin.copy:
+    src: teachua_monitoring/
+    dest: "{{ splunk_install_dir }}/etc/apps/teachua_monitoring/"
+    owner: "{{ splunk_user }}"
+    group: "{{ splunk_group }}"
+    mode: "0644"
+    directory_mode: "0755"
+  become: true
+  notify: Restart Splunk

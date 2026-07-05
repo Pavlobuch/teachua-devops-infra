@@ -83,9 +83,9 @@ Kubernetes (K3s)
 ↓
 Application
 ↓
-Prometheus
+Splunk Forwarder / HEC
 ↓
-Grafana
+Splunk (dedicated EC2)
 
 ---
 
@@ -196,27 +196,30 @@ Responsibilities:
 
 ---
 
-### Prometheus
+### Splunk
 
-Monitoring platform.
+Monitoring and log analysis platform. Runs self-hosted on a dedicated EC2 instance, separate from the K3s app node.
 
 Responsibilities:
 
-* Metrics collection
+* Log aggregation and indexing
 * Infrastructure monitoring
 * Application monitoring
+* Dashboards and alerting
 
 ---
 
-### Grafana
+### Fluent Bit
 
-Visualization platform.
+Log forwarder deployed as a Kubernetes DaemonSet on the K3s app node.
 
 Responsibilities:
 
-* Dashboards
-* Metrics visualization
-* Operational monitoring
+* Tail container logs (`/var/log/containers/*.log`)
+* Enrich logs with Kubernetes metadata
+* Ship logs to Splunk over HTTP Event Collector (HEC)
+
+Full design, including indexes and HEC setup, is in [monitoring.md](monitoring.md).
 
 ---
 

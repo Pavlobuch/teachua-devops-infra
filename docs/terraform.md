@@ -53,7 +53,7 @@ Each concern lives in its own file. Terraform merges all `.tf` files in the dire
 | Inbound | 22 | Your IP only | SSH access |
 | Inbound | 80 | `0.0.0.0/0` | HTTP — app traffic |
 | Inbound | 443 | `0.0.0.0/0` | HTTPS — app traffic |
-| Inbound | 3000 | Your IP only | Grafana dashboard |
+| Inbound | 3000 | Your IP only | Grafana dashboard — **stale, pending removal**: monitoring direction changed to Splunk on a dedicated EC2 (Stage 8); this rule and `aws_vpc_security_group_ingress_rule.allow_grafana` in `main.tf` still need to be updated in code |
 | Outbound | all | `0.0.0.0/0` | Unrestricted egress |
 
 MySQL (3306) is intentionally not exposed — it stays internal to K3s networking.
@@ -102,6 +102,43 @@ Both repositories share one lifecycle policy (defined as a `local` value):
 
 ---
 
+## Planned: Stage 8 — Monitoring Infrastructure
+
+Full design in [monitoring.md](monitoring.md). Not yet implemented in code — this section documents the target `.tf` changes.
+
+### Second EC2 — `ec2.tf`
+
+| Resource | Detail |
+|---|---|
+| `aws_instance.monitoring` | Same AMI/volume pattern as `aws_instance.app`; runs MySQL + Splunk |
+| Security group | New, dedicated — not `ec2_sg` |
+
+### Monitoring Security Group — `main.tf`
+
+**`teachua-dev-monitoring-sg`**
+
+| Direction | Port | Source | Reason |
+|---|---|---|---|
+| Inbound | 22 | Your IP only | SSH |
+| Inbound | 8000 | Your IP only | Splunk Web UI |
+| Inbound | 8088 | App EC2 security group only | Splunk HTTP Event Collector (HEC) |
+| Inbound | 9997 | App EC2 security group only | Splunk forwarder-to-indexer traffic |
+| Outbound | all | `0.0.0.0/0` | Unrestricted egress, matching `ec2_sg` |
+
+### App EC2 Security Group changes — `main.tf`
+
+* Remove `aws_vpc_security_group_ingress_rule.allow_grafana` (port 3000) — stale, left over from the abandoned Prometheus/Grafana plan.
+
+### New Outputs — `outputs.tf`
+
+| Output | Value |
+|---|---|
+| `monitoring_ec2_public_ip` | Public IP of the monitoring EC2 — used for SSH and the Ansible `[monitoring]` group |
+| `monitoring_ec2_public_dns` | Public DNS of the monitoring EC2 |
+| `monitoring_security_group_id` | ID of the monitoring security group |
+
+---
+
 ## Variables
 
 All variables are declared in `variables.tf` and values are set in `terraform.tfvars`.
@@ -117,7 +154,7 @@ All variables are declared in `variables.tf` and values are set in `terraform.tf
 | `availability_zone` | string | `eu-north-1a` | AZ for the public subnet |
 | `instance_type` | string | `t3.medium` | EC2 instance size |
 | `root_volume_size` | number | `30` | EBS root volume size in GB |
-| `allowed_ssh_cidr` | string | `<your-ip>/32` | IP allowed to SSH and access Grafana |
+| `allowed_ssh_cidr` | string | `<your-ip>/32` | IP allowed to SSH (and, currently, Grafana — pending removal) |
 | `public_key_path` | string | `~/.ssh/cheap-fullstack.pub` | Path to SSH public key |
 
 ---
@@ -255,5 +292,5 @@ aws ssm describe-instance-information \
 - **Stage 5 (Ansible):** Use `terraform output ec2_public_ip` to populate the Ansible inventory file with the EC2 IP.
 - **Stage 6 (Jenkins):** Use `terraform output frontend_ecr_repository_url` and `backend_ecr_repository_url` as the push targets in the Jenkins pipeline. Jenkins will need `AmazonEC2ContainerRegistryPowerUser` on its own credentials (not the EC2 role) to push images.
 - **Stage 7 (Kubernetes):** K3s runs on the same EC2. No infrastructure changes needed at this stage — K3s is installed via Ansible.
-- **Stage 8 (Monitoring):** Prometheus and Grafana run inside K3s. Port 3000 is already open in the security group for Grafana access.
+- **Stage 8 (Monitoring):** Direction changed to Splunk, self-hosted on a second, dedicated EC2 instance (not inside K3s). This requires new Terraform work: a second `aws_instance`, its own security group (inbound 8000 Splunk Web, 8088 HEC from the App SG, 9997 forwarder-to-indexer from the App SG), and removal of the now-stale `allow_grafana` ingress rule and port-3000 references on the App EC2.
 - **Remote state backend:** For production or team use, move Terraform state to S3 + DynamoDB for locking. Not implemented here to minimise cost and complexity.
