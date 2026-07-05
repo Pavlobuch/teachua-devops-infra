@@ -245,5 +245,90 @@ pipeline {
                 }
             }
         }
+
+        stage('Create Monitoring Namespace') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'EC2_SSH_KEY'
+                    )
+                ]) {
+                    sh '''
+                        ssh -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=no \
+                            "$EC2_USER@$EC2_HOST" \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -"
+                    '''
+                }
+            }
+        }
+
+        stage('Create Splunk HEC Secret') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'EC2_SSH_KEY'
+                    ),
+                    string(
+                        credentialsId: 'splunk-hec-token',
+                        variable: 'SPLUNK_HEC_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        ssh -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=no \
+                            "$EC2_USER@$EC2_HOST" \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl create secret generic splunk-hec-secret \
+                                --from-literal=hec-token='$SPLUNK_HEC_TOKEN' \
+                                -n monitoring \
+                                --dry-run=client -o yaml | kubectl apply -f -"
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Fluent Bit') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'EC2_SSH_KEY'
+                    )
+                ]) {
+                    sh '''
+                        ssh -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=no \
+                            "$EC2_USER@$EC2_HOST" \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && cd ~/teachua-devops-infra && \
+                             kubectl apply -f kubernetes/monitoring/fluent-bit-serviceaccount.yaml && \
+                             kubectl apply -f kubernetes/monitoring/fluent-bit-configmap.yaml && \
+                             kubectl apply -f kubernetes/monitoring/fluent-bit-daemonset.yaml"
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Fluent Bit') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'EC2_SSH_KEY'
+                    )
+                ]) {
+                    sh '''
+                        ssh -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=no \
+                            "$EC2_USER@$EC2_HOST" \
+                            "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl rollout status daemonset/fluent-bit -n monitoring --timeout=120s && \
+                             kubectl get pods -n monitoring"
+                    '''
+                }
+            }
+        }
     }
 }

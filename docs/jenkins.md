@@ -267,9 +267,129 @@ Pipeline architecture was changed to build Docker images using the backend Docke
 
 ---
 
+---
+
+## Continuous Deployment Pipeline
+
+The project uses three Jenkins pipelines.
+
+### Backend CI
+
+GitHub
+↓
+Checkout
+↓
+Build Docker Image
+↓
+Tag Image (Git SHA)
+↓
+Push to AWS ECR
+
+---
+
+### Frontend CI
+
+GitHub
+↓
+Checkout
+↓
+Build Docker Image
+↓
+Tag Image (Git SHA)
+↓
+Push to AWS ECR
+
+---
+
+### Infrastructure CD
+
+GitHub
+↓
+Checkout Infrastructure Repository
+↓
+Discover EC2 Instance
+↓
+Retrieve Latest Image Tags
+↓
+Update ECR Pull Secret
+↓
+Apply Kubernetes Manifests
+↓
+Update Deployment Images
+↓
+Wait for Rolling Update
+↓
+Verify Deployment
+
+**Planned, Stage 8:** an additional step applies the monitoring manifests —
+
+```text
+kubectl apply -f kubernetes/monitoring/
+```
+
+This is added to the pipeline only after Splunk is installed and an HEC token exists (see [monitoring.md](monitoring.md)) — applying the Fluent Bit DaemonSet before Splunk can accept events would just produce a crash-looping pod.
+
+---
+
+## Deployment Architecture
+
+Developer
+        │
+        ▼
+GitHub
+        │
+        ▼
+Jenkins
+        │
+        ├──────────────► Backend CI
+        │                    │
+        │                    ▼
+        │              AWS ECR Backend
+        │
+        ├──────────────► Frontend CI
+        │                    │
+        │                    ▼
+        │             AWS ECR Frontend
+        │
+        └──────────────► Infrastructure CD
+                             │
+                             ▼
+                          EC2 (K3s)
+                             │
+                 Update ECR Pull Secret
+                             │
+                             ▼
+                    kubectl apply
+                             │
+                             ▼
+                     Rolling Update
+                             │
+                             ▼
+                         Traefik
+                             │
+                             ▼
+                         Browser
+
+---
+
+## Key Design Decisions
+
+- Infrastructure deployment is separated from application build pipelines.
+- Backend and Frontend pipelines are responsible only for building and publishing Docker images.
+- Kubernetes deployment is managed exclusively by the Infrastructure pipeline.
+- Docker images are versioned using Git commit SHA.
+- Kubernetes resources are managed declaratively using manifests stored in the Infrastructure repository.
+- Deployments use rolling updates to avoid application downtime.
+
+---
+
 ## Next Steps
 
 CI/CD improvements:
 
-- Implement automatic GitHub webhook trigger
-- Add deployment stage to K3s
+- Configure GitHub Webhooks for automatic pipeline triggers
+- Trigger deployment after successful CI builds
+
+Monitoring (Stage 8) — see [monitoring.md](monitoring.md):
+
+- Add `kubectl apply -f kubernetes/monitoring/` to the Infrastructure CD pipeline once Splunk + HEC are ready

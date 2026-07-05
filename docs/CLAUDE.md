@@ -88,8 +88,7 @@ Infrastructure, automation, deployment, monitoring, and documentation.
 
 ## Monitoring
 
-* Prometheus
-* Grafana
+* Splunk (self-hosted, dedicated EC2 instance)
 
 ---
 
@@ -190,8 +189,7 @@ Monitoring is a required project component.
 
 Monitoring stack:
 
-* Prometheus
-* Grafana
+* Splunk Enterprise (Free license), self-hosted on a dedicated EC2 instance separate from the K3s app node
 
 Objectives:
 
@@ -218,6 +216,12 @@ Current documentation:
 README.md
 project-status.md
 architecture.md
+aws.md
+terraform.md
+ansible.md
+jenkins.md
+docker.md
+monitoring.md
 troubleshooting.md
 ```
 
@@ -237,9 +241,9 @@ Developer
 
 Monitoring Flow:
 
-Application
-→ Prometheus
-→ Grafana
+Application (K3s, EC2 #1)
+→ Splunk Forwarder / HEC
+→ Splunk (dedicated EC2 #2)
 
 Infrastructure Flow:
 
@@ -283,5 +287,4 @@ Always assume this project will eventually include:
 * Jenkins
 * Kubernetes (K3s)
 * AWS
-* Prometheus
-* Grafana
+* Splunk

@@ -38,13 +38,14 @@ AWS (eu-north-1)
 ├── ECR (teachua-frontend, teachua-backend)
 └── EC2
     ├── Docker + K3s
-    ├── Frontend / Backend / MySQL
-    └── Prometheus + Grafana
+    └── Frontend / Backend / MySQL
 ```
+
+Monitoring (Splunk) is not on this instance — see [Phase 2: 2 EC2 Architecture](#phase-2-2-ec2-architecture) below. Stage 8 triggers the split early, ahead of the original rollout order, because Splunk needs to run on its own host rather than inside K3s.
 
 ### EC2 Instance
 
-**t3.medium** (2 vCPU, 4 GB RAM, ~$30/month) — K3s + MySQL + Prometheus together are memory-heavy.
+**t3.medium** (2 vCPU, 4 GB RAM, ~$30/month) — K3s + MySQL are memory-heavy together.
 EBS: **30 GB gp3** (~$2.40/month).
 
 ### IAM Role
@@ -63,7 +64,6 @@ CloudWatchAgentServerPolicy    # optional
 22    your IP only       # SSH
 80    0.0.0.0/0          # HTTP
 443   0.0.0.0/0          # HTTPS (future)
-3000  your IP only       # Grafana
 ```
 
 Do not expose MySQL (3306) publicly — it stays internal to K3s networking.
@@ -108,14 +108,14 @@ Start with SSH-based.
 ### Monitoring
 
 ```text
-K3s metrics + Node metrics → Prometheus → Grafana dashboards
+K3s pod/node logs + metrics → Splunk Forwarder / HEC → Splunk (EC2 #2)
 ```
 
 ---
 
 ## Phase 2: 2 EC2 Architecture
 
-Split after Phase 1 is fully stable.
+Introduced with Stage 8 — Splunk needs its own host, so the split happens now rather than waiting for full Phase 1 stability.
 
 ```text
 EC2 #1 — App Server
@@ -125,8 +125,7 @@ EC2 #1 — App Server
 
 EC2 #2 — DB/Monitoring Server
 ├── MySQL
-├── Prometheus
-└── Grafana
+└── Splunk Enterprise (Free license)
 ```
 
 ### Why Split
@@ -145,12 +144,13 @@ Both EC2s in public subnets — avoids NAT Gateway cost (~$32/month). Security G
 ```text
 Inbound:  22 (your IP), 80 (all), 443 (all)
 Outbound: 3306 → DB Security Group
+         8088 → Monitoring Security Group (HEC)
 ```
 
 **DB/Monitoring EC2 Security Group:**
 
 ```text
-Inbound:  22 (your IP), 3306 (App SG only), 3000 (your IP), 9090 (your IP)
+Inbound:  22 (your IP), 3306 (App SG only), 8000 (your IP, Splunk Web), 8088 (App SG only, HEC), 9997 (App SG only, forwarder-to-indexer)
 ```
 
 ---
@@ -170,9 +170,9 @@ All estimates are before taxes and data transfer.
 
 ## Rollout Order
 
-1. Get 1 EC2 working end-to-end (Terraform → Ansible → K3s → Jenkins → Monitoring)
-2. Add Route 53 + HTTPS if needed for portfolio presentation
-3. Split to 2 EC2 once everything is stable
+1. Get 1 EC2 working end-to-end (Terraform → Ansible → K3s → Jenkins)
+2. Split to 2 EC2 for Stage 8 — provision the DB/Monitoring EC2 and install Splunk
+3. Add Route 53 + HTTPS if needed for portfolio presentation
 4. Add ALB optionally
 
 **Do not add NAT Gateway, RDS, or EKS** — unnecessary cost for this project.

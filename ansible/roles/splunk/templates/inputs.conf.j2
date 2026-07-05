@@ -1,0 +1,10 @@
+[http]
+disabled = 0
+port = {{ splunk_hec_port }}
+enableSSL = 0
+
+[http://teachua-hec]
+disabled = 0
+token = {{ splunk_hec_token }}
+index = teachua_k8s
+sourcetype = _json

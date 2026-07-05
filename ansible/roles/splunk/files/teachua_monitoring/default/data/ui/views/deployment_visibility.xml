@@ -1,0 +1,37 @@
+<dashboard version="1.1">
+  <label>Deployment Visibility</label>
+
+  <row>
+    <panel>
+      <title>Recent logs after deployment</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.namespace_name=teachua
+            | table _time kubernetes.container_name kubernetes.pod_name log
+            | sort - _time
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Container activity during last hour</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.namespace_name=teachua
+            | timechart count by kubernetes.container_name
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>

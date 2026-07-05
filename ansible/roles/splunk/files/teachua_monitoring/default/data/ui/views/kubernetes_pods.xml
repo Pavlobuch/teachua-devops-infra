@@ -1,0 +1,35 @@
+<dashboard version="1.1">
+  <label>Kubernetes Pods</label>
+
+  <row>
+    <panel>
+      <title>Logs by namespace</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s
+            | stats count by kubernetes.namespace_name
+            | sort - count
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Logs by pod</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s
+            | stats count by kubernetes.pod_name
+            | sort - count
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

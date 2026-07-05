@@ -1,0 +1,52 @@
+<dashboard version="1.1">
+  <label>Frontend / Nginx</label>
+
+  <row>
+    <panel>
+      <title>Frontend request logs</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.container_name=frontend
+            | table _time kubernetes.pod_name remote_addr request_method request_uri status body_bytes_sent
+            | sort - _time
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>HTTP status codes</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.container_name=frontend
+            | timechart count by status
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>404 errors</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.container_name=frontend status=404
+            | table _time kubernetes.pod_name request_method request_uri remote_addr
+            | sort - _time
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

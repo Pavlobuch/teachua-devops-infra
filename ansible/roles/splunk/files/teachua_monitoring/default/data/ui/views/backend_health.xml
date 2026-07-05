@@ -1,0 +1,37 @@
+<dashboard version="1.1">
+  <label>Backend Health</label>
+
+  <row>
+    <panel>
+      <title>Backend errors and exceptions</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.container_name=backend ("ERROR" OR "Exception" OR "error")
+            | table _time kubernetes.pod_name log
+            | sort - _time
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Backend log volume</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_k8s kubernetes.container_name=backend
+            | timechart count
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>

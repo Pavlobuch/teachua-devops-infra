@@ -43,3 +43,21 @@ resource "aws_instance" "app" {
     Name = "${var.project_name}-${var.environment}-ec2-app"
   })
 }
+
+resource "aws_instance" "monitoring" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  root_block_device {
+    volume_size = var.root_volume_size
+    volume_type = "gp3"
+    encrypted   = true
+  }
+  vpc_security_group_ids      = [aws_security_group.monitoring_sg.id]
+  subnet_id                   = aws_subnet.public.id
+  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+  key_name                    = aws_key_pair.ec2_key.key_name
+  associate_public_ip_address = true
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-ec2-monitoring"
+  })
+}

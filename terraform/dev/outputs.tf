@@ -28,6 +28,16 @@ output "ec2_public_ip" {
   value       = aws_instance.app.public_ip
 }
 
+output "ec2_monitoring_public_ip" {
+  description = "Public IP of the monitoring EC2"
+  value       = aws_instance.monitoring.public_ip
+}
+
+output "ec2_monitoring_private_ip" {
+  description = "Private IP of the monitoring EC2 (used by Fluent Bit to reach Splunk HEC)"
+  value       = aws_instance.monitoring.private_ip
+}
+
 output "ec2_public_dns" {
   description = "Public DNS of the app EC2"
   value       = aws_instance.app.public_dns

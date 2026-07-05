@@ -61,8 +61,7 @@ The main goal is to build a production-like environment using modern DevOps prac
 
 ### Monitoring
 
-* Prometheus
-* Grafana
+* Splunk (self-hosted, dedicated EC2 instance)
 
 ---
 
@@ -78,8 +77,9 @@ Developer
 
 Monitoring Flow:
 
-Prometheus
-→ Grafana
+Application (K3s)
+→ Splunk Forwarder / HEC
+→ Splunk (dedicated EC2)
 
 ---
 
@@ -90,7 +90,7 @@ Prometheus
 * Configure servers using Ansible
 * Build CI/CD pipelines using Jenkins
 * Deploy workloads to Kubernetes
-* Implement monitoring with Prometheus and Grafana
+* Implement monitoring and log analysis with Splunk on a dedicated EC2 instance
 * Follow DevOps best practices
 
 ---
