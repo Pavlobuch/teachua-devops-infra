@@ -110,7 +110,7 @@ Two instances, same AMI/volume/key pair pattern:
 | Resource | Detail |
 |---|---|
 | `aws_instance.app` | Ubuntu 22.04 LTS, `t3.medium`, 30 GB `gp3` encrypted, `ec2_sg`, runs K3s + the app |
-| `aws_instance.monitoring` | Same AMI/size/volume pattern, `monitoring_sg`, runs Splunk (MySQL not yet added here — see [monitoring.md](monitoring.md)) |
+| `aws_instance.monitoring` | Same AMI/size/volume pattern, `monitoring_sg`, runs Splunk (MySQL not yet added here — see [monitoring.md](monitoring.md)). Pinned `private_ip = "10.20.1.100"` so it doesn't drift on recreation |
 | AMI | Ubuntu 22.04 LTS — dynamic lookup via `data "aws_ami"`, shared by both instances |
 | Key pair | `cheap-fullstack` (loaded from `var.public_key_path`), shared by both instances |
 | IAM instance profile | Both instances currently share `aws_iam_instance_profile.ec2_profile` (ECR ReadOnly + SSM) — Splunk doesn't need ECR access, but SSM is useful for troubleshooting without more SSH exposure |
@@ -207,7 +207,7 @@ After `terraform apply`, the following values are printed:
 | `ec2_instance_id` | EC2 instance ID |
 | `ec2_public_ip` | Public IP — used for SSH and Ansible inventory |
 | `ec2_monitoring_public_ip` | Public IP of the monitoring EC2 — used for SSH and the Ansible `[monitoring]` group |
-| `ec2_monitoring_private_ip` | Private IP of the monitoring EC2 — used as the `Host` in `kubernetes/monitoring/fluent-bit-configmap.yaml` so Fluent Bit can reach Splunk HEC. Not stable across instance recreation — re-fetch and update the ConfigMap every time the monitoring EC2 is destroyed/recreated |
+| `ec2_monitoring_private_ip` | Private IP of the monitoring EC2 — pinned to a static `10.20.1.100` via `private_ip` on `aws_instance.monitoring`, so it stays the same across instance recreation. Used as the `Host` in `kubernetes/monitoring/fluent-bit-configmap.yaml` and `splunk_indexer_private_ip` in `ansible/inventory.ini` so Fluent Bit and the Universal Forwarder can reach Splunk |
 | `ec2_public_dns` | Public DNS hostname |
 | `iam_role_name` | IAM role name |
 | `frontend_ecr_repository_url` | Full ECR URL for frontend — used in Jenkins push commands |
