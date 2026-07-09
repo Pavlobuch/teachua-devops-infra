@@ -70,7 +70,7 @@ New outputs:
 | Output | Purpose |
 |---|---|
 | `ec2_monitoring_public_ip` | Used for SSH and the Ansible `[monitoring]` inventory group |
-| `ec2_monitoring_private_ip` | Used as the `Host` in `fluent-bit-configmap.yaml` — not stable across instance recreation, must be re-fetched and the ConfigMap updated every time the monitoring EC2 is destroyed/recreated |
+| `ec2_monitoring_private_ip` | Used as the `Host` in `fluent-bit-configmap.yaml` — pinned to a static `10.20.1.100` via `private_ip` on `aws_instance.monitoring`, so it stays the same across instance recreation |
 
 The stale `aws_vpc_security_group_ingress_rule.allow_grafana` (port 3000) was removed from `main.tf` — it was left over from the abandoned Prometheus/Grafana plan. See [terraform.md](terraform.md) for the full resource list.
 
@@ -176,7 +176,7 @@ Ships to:
 http://<MONITORING_EC2_PRIVATE_IP>:8088
 ```
 
-(Both EC2s are in the same VPC, so the private IP avoids the extra hop and cost of routing through the public IP even though both are in a public subnet. This IP is not stable across instance recreation — see the Terraform outputs note above.)
+(Both EC2s are in the same VPC, so the private IP avoids the extra hop and cost of routing through the public IP even though both are in a public subnet. This IP is pinned to a static `10.20.1.100` in Terraform — see the Terraform outputs note above.)
 
 Manifests — `kubernetes/monitoring/`:
 
@@ -298,7 +298,7 @@ Ordering matters: the Secret must exist before Fluent Bit's pods try to mount it
 14. Jenkins Infrastructure CD pipeline updated with the monitoring stages
 15. This document and the others listed below updated
 
-Recreating infra from scratch (destroy/apply) requires redoing steps 2, and re-pointing the ConfigMap's private IP (step 9's manifest) at the new value — see [Terraform changes](#terraform-changes) above. Steps 3–8 also need rerunning against fresh instances.
+Recreating infra from scratch (destroy/apply) requires redoing steps 2. The monitoring EC2's private IP is pinned to a static `10.20.1.100` in Terraform, so the ConfigMap's private IP no longer needs to be re-pointed after a recreate — see [Terraform changes](#terraform-changes) above. Steps 3–8 still need rerunning against fresh instances.
 
 ---
 

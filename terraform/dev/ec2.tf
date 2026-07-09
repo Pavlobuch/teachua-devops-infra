@@ -54,6 +54,7 @@ resource "aws_instance" "monitoring" {
   }
   vpc_security_group_ids      = [aws_security_group.monitoring_sg.id]
   subnet_id                   = aws_subnet.public.id
+  private_ip                  = "10.20.1.100"
   iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
   key_name                    = aws_key_pair.ec2_key.key_name
   associate_public_ip_address = true

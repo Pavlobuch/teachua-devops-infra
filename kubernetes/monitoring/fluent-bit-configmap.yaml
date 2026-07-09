@@ -33,7 +33,7 @@ data:
     [OUTPUT]
         Name             splunk
         Match            kube.*
-        Host             10.20.1.210
+        Host             10.20.1.100
         Port             8088
         Splunk_Token     ${SPLUNK_HEC_TOKEN}
         TLS              Off

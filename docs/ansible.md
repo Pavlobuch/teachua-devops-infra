@@ -108,7 +108,7 @@ terraform output ec2_monitoring_public_ip
 terraform output ec2_monitoring_private_ip
 ```
 
-`splunk_indexer_private_ip` is consumed by the `splunk_forwarder` role (on `app`) to point its Universal Forwarder at the indexer over the private network — same value used in `kubernetes/monitoring/fluent-bit-configmap.yaml`, same caveat: not stable across instance recreation, must be updated in both places.
+`splunk_indexer_private_ip` is consumed by the `splunk_forwarder` role (on `app`) to point its Universal Forwarder at the indexer over the private network — same value used in `kubernetes/monitoring/fluent-bit-configmap.yaml`. The monitoring EC2's `private_ip` is pinned to a static `10.20.1.100` in Terraform (`aws_instance.monitoring`), so this value is stable across instance recreation and doesn't need to be re-fetched.
 
 **Play order matters**: `site.yml`'s `monitoring` play runs before its `app` play. The `splunk` role must have the S2S listener (port 9997) up before `splunk_forwarder` tries to connect and validates it — reversing the order would make that validation fail on a fresh environment.
 
