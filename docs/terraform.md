@@ -53,10 +53,23 @@ Each concern lives in its own file. Terraform merges all `.tf` files in the dire
 | Inbound | 22 | Your IP only | SSH access |
 | Inbound | 80 | `0.0.0.0/0` | HTTP — app traffic |
 | Inbound | 443 | `0.0.0.0/0` | HTTPS — app traffic |
-| Inbound | 3000 | Your IP only | Grafana dashboard — **stale, pending removal**: monitoring direction changed to Splunk on a dedicated EC2 (Stage 8); this rule and `aws_vpc_security_group_ingress_rule.allow_grafana` in `main.tf` still need to be updated in code |
 | Outbound | all | `0.0.0.0/0` | Unrestricted egress |
 
-MySQL (3306) is intentionally not exposed — it stays internal to K3s networking.
+MySQL (3306) is intentionally not exposed — it stays internal to K3s networking. The old port-3000 Grafana rule (`allow_grafana`) has been removed — monitoring moved to Splunk on a dedicated EC2 (Stage 8).
+
+### Monitoring Security Group — `main.tf`
+
+**`teachua-dev-monitoring-sg`** — attached to the monitoring EC2, separate from `ec2_sg`.
+
+| Direction | Port | Source | Reason |
+|---|---|---|---|
+| Inbound | 22 | Your IP only | SSH access |
+| Inbound | 8000 | Your IP only | Splunk Web UI |
+| Inbound | 8088 | `ec2_sg` (App EC2, via `referenced_security_group_id`) | Splunk HTTP Event Collector (HEC) |
+| Inbound | 9997 | `ec2_sg` (App EC2, via `referenced_security_group_id`) | Splunk forwarder-to-indexer (S2S) traffic |
+| Outbound | all | `0.0.0.0/0` | Unrestricted egress |
+
+The 8088/9997 rules reference the App EC2's security group directly rather than a CIDR — this matches by security-group membership, so it keeps working even if the app EC2's IP changes.
 
 ### IAM — `iam.tf`
 
@@ -92,50 +105,16 @@ Both repositories share one lifecycle policy (defined as a `local` value):
 
 ### EC2 — `ec2.tf`
 
-| Resource | Detail |
-|---|---|
-| AMI | Ubuntu 22.04 LTS — dynamic lookup via `data "aws_ami"` |
-| Instance type | `t3.medium` (2 vCPU, 4 GB RAM) |
-| Root volume | 30 GB, `gp3`, encrypted |
-| Key pair | `cheap-fullstack` (loaded from `var.public_key_path`) |
-| Public IP | Auto-assigned via subnet setting |
-
----
-
-## Planned: Stage 8 — Monitoring Infrastructure
-
-Full design in [monitoring.md](monitoring.md). Not yet implemented in code — this section documents the target `.tf` changes.
-
-### Second EC2 — `ec2.tf`
+Two instances, same AMI/volume/key pair pattern:
 
 | Resource | Detail |
 |---|---|
-| `aws_instance.monitoring` | Same AMI/volume pattern as `aws_instance.app`; runs MySQL + Splunk |
-| Security group | New, dedicated — not `ec2_sg` |
-
-### Monitoring Security Group — `main.tf`
-
-**`teachua-dev-monitoring-sg`**
-
-| Direction | Port | Source | Reason |
-|---|---|---|---|
-| Inbound | 22 | Your IP only | SSH |
-| Inbound | 8000 | Your IP only | Splunk Web UI |
-| Inbound | 8088 | App EC2 security group only | Splunk HTTP Event Collector (HEC) |
-| Inbound | 9997 | App EC2 security group only | Splunk forwarder-to-indexer traffic |
-| Outbound | all | `0.0.0.0/0` | Unrestricted egress, matching `ec2_sg` |
-
-### App EC2 Security Group changes — `main.tf`
-
-* Remove `aws_vpc_security_group_ingress_rule.allow_grafana` (port 3000) — stale, left over from the abandoned Prometheus/Grafana plan.
-
-### New Outputs — `outputs.tf`
-
-| Output | Value |
-|---|---|
-| `monitoring_ec2_public_ip` | Public IP of the monitoring EC2 — used for SSH and the Ansible `[monitoring]` group |
-| `monitoring_ec2_public_dns` | Public DNS of the monitoring EC2 |
-| `monitoring_security_group_id` | ID of the monitoring security group |
+| `aws_instance.app` | Ubuntu 22.04 LTS, `t3.medium`, 30 GB `gp3` encrypted, `ec2_sg`, runs K3s + the app |
+| `aws_instance.monitoring` | Same AMI/size/volume pattern, `monitoring_sg`, runs Splunk (MySQL not yet added here — see [monitoring.md](monitoring.md)) |
+| AMI | Ubuntu 22.04 LTS — dynamic lookup via `data "aws_ami"`, shared by both instances |
+| Key pair | `cheap-fullstack` (loaded from `var.public_key_path`), shared by both instances |
+| IAM instance profile | Both instances currently share `aws_iam_instance_profile.ec2_profile` (ECR ReadOnly + SSM) — Splunk doesn't need ECR access, but SSM is useful for troubleshooting without more SSH exposure |
+| Public IP | Auto-assigned via subnet setting, both instances |
 
 ---
 
@@ -227,6 +206,8 @@ After `terraform apply`, the following values are printed:
 | `public_route_table_id` | ID of the public route table |
 | `ec2_instance_id` | EC2 instance ID |
 | `ec2_public_ip` | Public IP — used for SSH and Ansible inventory |
+| `ec2_monitoring_public_ip` | Public IP of the monitoring EC2 — used for SSH and the Ansible `[monitoring]` group |
+| `ec2_monitoring_private_ip` | Private IP of the monitoring EC2 — used as the `Host` in `kubernetes/monitoring/fluent-bit-configmap.yaml` so Fluent Bit can reach Splunk HEC. Not stable across instance recreation — re-fetch and update the ConfigMap every time the monitoring EC2 is destroyed/recreated |
 | `ec2_public_dns` | Public DNS hostname |
 | `iam_role_name` | IAM role name |
 | `frontend_ecr_repository_url` | Full ECR URL for frontend — used in Jenkins push commands |
@@ -292,5 +273,5 @@ aws ssm describe-instance-information \
 - **Stage 5 (Ansible):** Use `terraform output ec2_public_ip` to populate the Ansible inventory file with the EC2 IP.
 - **Stage 6 (Jenkins):** Use `terraform output frontend_ecr_repository_url` and `backend_ecr_repository_url` as the push targets in the Jenkins pipeline. Jenkins will need `AmazonEC2ContainerRegistryPowerUser` on its own credentials (not the EC2 role) to push images.
 - **Stage 7 (Kubernetes):** K3s runs on the same EC2. No infrastructure changes needed at this stage — K3s is installed via Ansible.
-- **Stage 8 (Monitoring):** Direction changed to Splunk, self-hosted on a second, dedicated EC2 instance (not inside K3s). This requires new Terraform work: a second `aws_instance`, its own security group (inbound 8000 Splunk Web, 8088 HEC from the App SG, 9997 forwarder-to-indexer from the App SG), and removal of the now-stale `allow_grafana` ingress rule and port-3000 references on the App EC2.
+- **Stage 8 (Monitoring):** Completed. Splunk runs self-hosted on the second, dedicated `aws_instance.monitoring` (not inside K3s), with its own `monitoring_sg` security group and `ec2_monitoring_public_ip`/`ec2_monitoring_private_ip` outputs. See [monitoring.md](monitoring.md).
 - **Remote state backend:** For production or team use, move Terraform state to S3 + DynamoDB for locking. Not implemented here to minimise cost and complexity.

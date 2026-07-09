@@ -1,0 +1,5 @@
+---
+- name: Restart Splunk Forwarder
+  ansible.builtin.command: "{{ splunk_forwarder_install_dir }}/bin/splunk restart"
+  become: true
+  changed_when: true

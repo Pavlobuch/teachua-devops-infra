@@ -10,7 +10,8 @@ Ansible automates EC2 server configuration. It runs locally on the developer mac
 | `docker` | Docker CE + Docker Compose plugin |
 | `k3s_prerequisites` | Kernel modules, sysctl params, swap disable |
 | `k3s` | K3s installation and validation |
-| `splunk` *(planned, Stage 8)* | Splunk Enterprise install, license, admin user, indexes, HEC — runs on the `monitoring` host only |
+| `splunk` | Splunk Enterprise install, license, admin user, indexes, HEC, S2S receiving, dashboards/alerts — runs on the `monitoring` host only |
+| `splunk_forwarder` | Splunk Universal Forwarder + Splunk_TA_nix install, forwards CPU/memory/disk/network metrics to the indexer — runs on the `app` host only |
 
 ---
 
@@ -30,7 +31,9 @@ devops-infra/ansible/
     ├── common/
     ├── docker/
     ├── k3s_prerequisites/
-    └── k3s/
+    ├── k3s/
+    ├── splunk_forwarder/   ← runs on `app` host
+    └── splunk/             ← runs on `monitoring` host
 ```
 
 Each role follows the structure:
@@ -83,7 +86,7 @@ cd devops-infra/terraform
 terraform output ec2_public_ip
 ```
 
-**Planned, Stage 8:** a `[monitoring]` group is added once the second EC2 exists, so `site.yml` can target app and monitoring roles separately:
+A `[monitoring]` group is added alongside `[app]`, so `site.yml` can target app and monitoring roles separately:
 
 ```ini
 [app]
@@ -94,14 +97,20 @@ terraform output ec2_public_ip
 
 [app:vars]
 ansible_python_interpreter=/usr/bin/python3
+splunk_indexer_private_ip=<MONITORING_EC2_PRIVATE_IP>
 
 [monitoring:vars]
 ansible_python_interpreter=/usr/bin/python3
 ```
 
 ```bash
-terraform output monitoring_ec2_public_ip
+terraform output ec2_monitoring_public_ip
+terraform output ec2_monitoring_private_ip
 ```
+
+`splunk_indexer_private_ip` is consumed by the `splunk_forwarder` role (on `app`) to point its Universal Forwarder at the indexer over the private network — same value used in `kubernetes/monitoring/fluent-bit-configmap.yaml`, same caveat: not stable across instance recreation, must be updated in both places.
+
+**Play order matters**: `site.yml`'s `monitoring` play runs before its `app` play. The `splunk` role must have the S2S listener (port 9997) up before `splunk_forwarder` tries to connect and validates it — reversing the order would make that validation fail on a fresh environment.
 
 ---
 
@@ -215,29 +224,72 @@ Installs and validates K3s (single-node Kubernetes).
 
 ---
 
-### splunk *(planned, Stage 8)*
+### splunk
 
 Installs and configures Splunk Enterprise on the `monitoring` host. Full design in [monitoring.md](monitoring.md).
 
 ```text
 roles/splunk/
-├── defaults/main.yml   ← version, download URL, admin user, index names, HEC port
-├── tasks/main.yml       ← task list
-├── handlers/main.yml    ← restart Splunk
-└── templates/           ← indexes.conf, inputs.conf (HEC), if managed as files
+├── defaults/main.yml     ← version, download URL, admin user, index names, HEC port/token
+├── tasks/main.yml        ← task list
+├── handlers/main.yml     ← restart Splunk
+├── templates/            ← indexes.conf.j2, inputs.conf.j2 (HEC), user-seed.conf.j2
+└── files/
+    └── teachua_monitoring/
+        └── default/      ← Splunk app: app.conf, savedsearches.conf (alerts), data/ui/views/*.xml (dashboards)
 ```
 
 | Task | Purpose |
 |---|---|
-| Create `splunk` system user | Splunk should not run as root or `ubuntu` |
-| Check if Splunk is already installed | Skip download/install if present, same pattern as the `k3s` role |
+| Create `splunk` group and system user | Splunk should not run as root or `ubuntu` |
+| Check if Splunk binary is already installed | Skip download/install if present, same pattern as the `k3s` role |
 | Download Splunk Enterprise `.deb` package | Official Splunk download URL, version pinned in defaults |
 | Install the package | `ansible.builtin.apt` with `deb` local file |
-| Accept the Splunk license | `--accept-license` on first start |
-| Set admin username/password | Via `user-seed.conf`, not interactive prompts — avoids the setup wizard |
-| Enable Splunk boot-start | systemd service, enabled + started |
-| Start Splunk | `ansible.builtin.service` |
-| Validate Splunk is listening on 8000 | `ansible.builtin.wait_for` or `uri` module against the Web UI |
+| Set ownership of the install directory | Recursive chown to `splunk:splunk` |
+| Deploy `user-seed.conf` | Seeds the admin username/password before first start, avoids the setup wizard |
+| Enable Splunk boot-start and accept license | `splunk enable boot-start --accept-license --answer-yes --no-prompt` |
+| Ensure Splunk service is started and enabled | `ansible.builtin.service` against the systemd unit |
+| Validate Splunk is listening on 8000 | `ansible.builtin.wait_for` |
+| Configure Splunk indexes | Deploys `indexes.conf` (templated), notifies restart |
+| Configure Splunk HEC and S2S receiving | Deploys `inputs.conf` (templated with the Vault-stored HEC token, plus a `[splunktcp://9997]` receiver stanza for the Universal Forwarder), notifies restart |
+| Deploy TeachUA Splunk monitoring app | Copies `files/teachua_monitoring/` (dashboards + alerts) to `/opt/splunk/etc/apps/teachua_monitoring/`, notifies restart |
+
+No third-party add-on is installed on this host — see `splunk_forwarder` below for why, and note `sourcetype=_json` (used by both the HEC/K8s pipeline and the infra metrics pipeline) needs no extra field-extraction knowledge on the indexer.
+
+---
+
+### splunk_forwarder
+
+Installs the Splunk Universal Forwarder on the `app` host, feeding host-level CPU/memory/disk/network metrics into `teachua_infra` on the indexer. Full design in [monitoring.md](monitoring.md#infrastructure-metrics-cpumemorydisknetwork).
+
+**Not using Splunk's official Add-on for Unix and Linux (Splunk_TA_nix)** — confirmed via direct HTTP request that Splunkbase gates it behind a login (401 without one), and there's no account available in this environment. Instead, `files/teachua_infra_metrics/` is a small self-authored Splunk app: four shell scripts (`cpu_metrics.sh`, `mem_metrics.sh`, `disk_metrics.sh`, `net_metrics.sh`), each emitting one JSON line per run. All four were tested against real command output in an Ubuntu 22.04 container before being committed. Upside over the add-on approach: since the fields are self-defined, there's no third-party-format uncertainty to verify later.
+
+```text
+roles/splunk_forwarder/
+├── defaults/main.yml   ← version, download URL, indexer host/port, metrics app name/scripts, infra index
+├── tasks/main.yml      ← task list
+├── handlers/main.yml   ← restart Splunk Forwarder
+├── templates/          ← user-seed.conf.j2, outputs.conf.j2, inputs.conf.j2 (enables the 4 metric scripts)
+└── files/teachua_infra_metrics/
+    ├── bin/            ← the 4 collector scripts
+    └── default/app.conf
+```
+
+| Task | Purpose |
+|---|---|
+| Create `splunkfwd` group and system user | Universal Forwarder should not run as root or `ubuntu` |
+| Check if the Forwarder binary is already installed | Skip download/install if present |
+| Download the Universal Forwarder `.deb` package | Same unauthenticated `download.splunk.com` pattern as Splunk Enterprise — verified reachable without a Splunkbase login |
+| Install the package | `ansible.builtin.apt` with `deb` local file |
+| Set ownership of the install directory | Recursive chown to `splunkfwd:splunkfwd` |
+| Deploy `user-seed.conf` | Seeds the admin username/password before first start |
+| Enable boot-start and accept license | `splunk enable boot-start --accept-license --answer-yes --no-prompt` |
+| Ensure the Forwarder is started | `splunk start`, idempotent |
+| Configure forwarding to the indexer | Deploys `outputs.conf` pointing at `splunk_indexer_private_ip:9997`, notifies restart |
+| Deploy the `teachua_infra_metrics` app | Copies `files/teachua_infra_metrics/` to `/opt/splunkforwarder/etc/apps/`, notifies restart |
+| Make the collector scripts executable | `mode: "0755"` on each `bin/*.sh` — `copy` doesn't preserve execute bits by default |
+| Enable the metric collector scripted inputs | Deploys `default/inputs.conf` enabling all 4 scripts with `sourcetype=_json`, `index=teachua_infra` — `default/` not `local/`, since the app's `local/` directory is never created by the `copy` task and doesn't exist to deploy into |
+| Validate forwarding | Flushes handlers, runs `splunk list forward-server`, asserts the indexer host appears in the output |
 
 ---
 
@@ -315,4 +367,4 @@ ansible-galaxy collection list
 
 - **Stage 6 (Jenkins):** Jenkins will call `ansible-playbook site.yml` as part of the CD pipeline after a new image is pushed to ECR.
 - **Stage 7 (Kubernetes):** The `k3s` role provisions the cluster. Kubernetes manifests are managed separately in `devops-infra/kubernetes/`.
-- **Stage 8 (Monitoring):** The `splunk` role (above) installs and configures Splunk Enterprise on the dedicated `monitoring` host. Log shipping from K3s is handled by a Fluent Bit DaemonSet Kubernetes manifest (not an Ansible role) — see [monitoring.md](monitoring.md).
+- **Stage 8 (Monitoring):** The `splunk` role installs and configures Splunk Enterprise on the dedicated `monitoring` host. Log shipping from K3s is handled by a Fluent Bit DaemonSet Kubernetes manifest (not an Ansible role). Host-level infrastructure metrics (CPU/memory/disk/network) are handled by the `splunk_forwarder` role on the `app` host, via a Splunk Universal Forwarder + Splunk_TA_nix over S2S (port 9997) — see [monitoring.md](monitoring.md).

@@ -8,3 +8,6 @@ disabled = 0
 token = {{ splunk_hec_token }}
 index = teachua_k8s
 sourcetype = _json
+
+[splunktcp://{{ splunk_s2s_port }}]
+disabled = 0

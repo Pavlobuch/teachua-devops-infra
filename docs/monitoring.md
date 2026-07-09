@@ -4,7 +4,7 @@
 
 Stage 8 adds monitoring and log analysis using **Splunk Enterprise (Free license)**, self-hosted on its own dedicated EC2 instance.
 
-Status: **Planned** — this document describes the target design. See [project-status.md](project-status.md) for what has actually been built so far.
+Status: **Implemented and verified working end-to-end** — logs from backend, frontend, and MySQL pods are flowing into Splunk via Fluent Bit/HEC, dashboards are populated, and alerts are scheduled. See [project-status.md](project-status.md) for the completed checklist.
 
 ---
 
@@ -51,7 +51,7 @@ Node/system logs ───────────────────┘
 
 ---
 
-## Terraform changes (planned)
+## Terraform changes
 
 New resources, in addition to the existing single `aws_instance.app`:
 
@@ -69,15 +69,14 @@ New outputs:
 
 | Output | Purpose |
 |---|---|
-| `monitoring_ec2_public_ip` | Used for SSH and the Ansible `[monitoring]` inventory group |
-| `monitoring_ec2_public_dns` | Public DNS of the monitoring EC2 |
-| `monitoring_security_group_id` | Referenced when wiring up cross-SG rules |
+| `ec2_monitoring_public_ip` | Used for SSH and the Ansible `[monitoring]` inventory group |
+| `ec2_monitoring_private_ip` | Used as the `Host` in `fluent-bit-configmap.yaml` — not stable across instance recreation, must be re-fetched and the ConfigMap updated every time the monitoring EC2 is destroyed/recreated |
 
-Also required: remove the stale `aws_vpc_security_group_ingress_rule.allow_grafana` (port 3000) from `main.tf` — it was added for the abandoned Prometheus/Grafana plan and is no longer used. See [terraform.md](terraform.md) for the full planned resource list.
+The stale `aws_vpc_security_group_ingress_rule.allow_grafana` (port 3000) was removed from `main.tf` — it was left over from the abandoned Prometheus/Grafana plan. See [terraform.md](terraform.md) for the full resource list.
 
 ---
 
-## Ansible changes (planned)
+## Ansible changes
 
 Inventory grows from a single `[app]` group to `[app]` + `[monitoring]`:
 
@@ -111,23 +110,25 @@ New role: `ansible/roles/splunk/`
 
 ```text
 splunk/
-├── defaults/main.yml     ← version, download URL, admin user, index names, HEC port
-├── tasks/main.yml        ← install, license, admin creds, indexes, HEC, validation
+├── defaults/main.yml     ← version, download URL, admin user, index names, HEC port/token
+├── tasks/main.yml        ← install, license, admin creds, indexes, HEC, dashboards/alerts, validation
 ├── handlers/main.yml     ← restart Splunk
-└── templates/            ← indexes.conf, inputs.conf (HEC) if managed as files rather than CLI calls
+├── templates/            ← indexes.conf.j2, inputs.conf.j2 (HEC), user-seed.conf.j2
+└── files/teachua_monitoring/default/  ← Splunk app: dashboards + savedsearches.conf (alerts)
 ```
 
-Planned tasks (following the same idempotent check → install → validate pattern as the `k3s` role):
+Tasks (following the same idempotent check → install → validate pattern as the `k3s` role):
 
-1. Create a dedicated `splunk` system user
+1. Create a dedicated `splunk` group and system user
 2. Check whether Splunk is already installed (skip download/install if so)
 3. Download the Splunk Enterprise `.deb` package
 4. Install the package
-5. Accept the Splunk license (`--accept-license`)
-6. Set the admin username/password (via `user-seed.conf`, not interactive prompts)
-7. Enable the Splunk boot-start systemd service
-8. Start Splunk
-9. Validate Splunk is listening on port 8000 (`wait_for` / `uri` module)
+5. Deploy `user-seed.conf` to seed the admin username/password (not interactive prompts)
+6. Enable Splunk boot-start and accept the license in one command
+7. Ensure the Splunk service is started and enabled
+8. Validate Splunk is listening on port 8000 (`wait_for`)
+9. Configure indexes and HEC (templated, Vault-driven token)
+10. Deploy the `teachua_monitoring` Splunk app (dashboards + alerts)
 
 See [ansible.md](ansible.md) for the full role table.
 
@@ -150,12 +151,12 @@ Kept deliberately small — four indexes is enough to demonstrate index-based da
 
 HEC lets Fluent Bit (or any HTTP client) push events into Splunk without the older Universal Forwarder agent.
 
-Setup:
+Setup, as implemented:
 
-1. Enable HEC globally in Splunk (`Settings → Data Inputs → HTTP Event Collector`).
-2. Create one HEC token, bound to the four indexes above (or one token per index if finer-grained access control is wanted later — start with one).
-3. Open port `8088` **only** from the App EC2 security group — never publicly.
-4. Store the HEC token as a Kubernetes Secret (`fluent-bit-secret.yaml`) referenced by the Fluent Bit DaemonSet — never committed in plaintext to the repo. For the Ansible side (setting the token during Splunk provisioning), keep it in Ansible Vault.
+1. HEC enabled globally via `inputs.conf` (templated by the `splunk` role), bound to the `teachua_k8s` index by default (not restricted to it — other indexes remain reachable if an event specifies one explicitly).
+2. One HEC token, `vault_splunk_hec_token` in Ansible Vault, used to render Splunk's `inputs.conf` on the monitoring EC2.
+3. Port `8088` open **only** from the App EC2 security group — never publicly.
+4. The token is also stored as a Jenkins "Secret text" credential (`splunk-hec-token`), used by the Infrastructure CD pipeline's `Create Splunk HEC Secret` stage to create the `splunk-hec-secret` Kubernetes Secret imperatively — never committed to the repo as a file. **The Vault value and the Jenkins credential are two independent stores with no automatic link** — they must be kept identical manually, or Splunk silently rejects Fluent Bit's events with an invalid-token error (visible only in Fluent Bit's own logs).
 
 ---
 
@@ -175,47 +176,82 @@ Ships to:
 http://<MONITORING_EC2_PRIVATE_IP>:8088
 ```
 
-(Both EC2s are in the same VPC, so the private IP avoids the extra hop and cost of routing through the public IP even though both are in a public subnet.)
+(Both EC2s are in the same VPC, so the private IP avoids the extra hop and cost of routing through the public IP even though both are in a public subnet. This IP is not stable across instance recreation — see the Terraform outputs note above.)
 
-Planned manifests — `kubernetes/monitoring/`:
+Manifests — `kubernetes/monitoring/`:
 
 | File | Purpose |
 |---|---|
+| `00-namespace.yaml` | Creates the `monitoring` namespace. Numbered to sort first — `kubectl apply -R -f kubernetes/` processes files in lexical order, and every other file here specifies `namespace: monitoring` |
 | `fluent-bit-serviceaccount.yaml` | ServiceAccount + ClusterRole/ClusterRoleBinding to read pod logs |
 | `fluent-bit-configmap.yaml` | Fluent Bit config: `INPUT` (tail `/var/log/containers/*.log`), `FILTER` (Kubernetes metadata enrichment), `OUTPUT` (splunk plugin → HEC) |
-| `fluent-bit-secret.yaml` | HEC token, mounted as an env var into the Fluent Bit container |
-| `fluent-bit-daemonset.yaml` | DaemonSet spec, runs on every node, mounts `/var/log` and `/var/lib/docker/containers` read-only |
+| `fluent-bit-daemonset.yaml` | DaemonSet spec, runs on every node, mounts `/var/log` read-only |
 
-Applied by the Infrastructure CD Jenkins pipeline (`kubectl apply -f kubernetes/monitoring/`), same as the existing app manifests — see [jenkins.md](jenkins.md).
+No `fluent-bit-secret.yaml` exists in this folder, intentionally — the Secret is created imperatively by the Jenkins pipeline (see below), not committed as a file, to avoid a placeholder token ever getting applied for real.
+
+Applied by the Infrastructure CD Jenkins pipeline's `Deploy Fluent Bit` stage (explicit file list, run after the Secret exists) — see [jenkins.md](jenkins.md). These files also get swept up a second time by the pre-existing `Apply Kubernetes Manifests` stage's recursive `kubectl apply -R -f kubernetes/` — harmless since `kubectl apply` is idempotent.
 
 ---
 
 ## Application log flow
 
-**Backend and Frontend are not modified at this stage.** Both already log to stdout/stderr inside their containers:
+**Backend is unmodified** — Spring Boot already logs to stdout/stderr as plain text, picked up by Fluent Bit like any container.
+
+**Frontend/Nginx was changed**: `frontend-Pavlobuch/nginx.conf` now defines a JSON `log_format` and uses it for `access_log`, so Splunk gets clean structured fields (`status`, `request_uri`, `request_method`, `remote_addr`, etc.) instead of a raw text line. This was necessary for the Frontend/Nginx dashboard and the "Frontend 5xx errors" alert to work on actual fields rather than fragile text matching. One side effect: Fluent Bit's `Merge_Log On` + `Keep_Log Off` means the raw `log` field is replaced by these parsed fields for frontend events specifically — dashboards/alerts querying frontend logs use the structured fields, not `log`.
 
 ```text
-Backend container stdout/stderr  ──► Kubernetes container logs ──► Fluent Bit ──► Splunk HEC (teachua_app / teachua_access)
-Frontend/Nginx container stdout ─┘
+Backend container stdout/stderr  ──► Kubernetes container logs ──► Fluent Bit ──► Splunk HEC (teachua_k8s)
+Frontend/Nginx container stdout (JSON) ─┘
 ```
 
-Nginx access/error logs go to stdout/stderr by default in the container image, so no Dockerfile change is needed to get status codes, 404s, and request volume into Splunk.
+All containers currently land in the single `teachua_k8s` index (the HEC token's default) — logs aren't yet split across `teachua_app`/`teachua_infra`/`teachua_access`. Still fully filterable by `kubernetes.container_name` regardless of index. Splitting by index would need a second Fluent Bit `[OUTPUT]` block matched on a distinct tag — not done in this pass.
 
-Structured JSON logging in the Java app is a later improvement, not a Stage 8 requirement.
+Structured JSON logging in the Java backend is a later improvement, not implemented.
 
 ---
 
-## Dashboards (planned)
+## Infrastructure metrics (CPU/memory/disk/network)
+
+Separate from the K3s log pipeline above. Host-level metrics for the **App EC2** come from a second data path:
+
+```text
+Splunk Universal Forwarder (App EC2)
++ teachua_infra_metrics (self-authored scripted inputs, not a Splunkbase add-on)
+──► S2S (port 9997) ──► Splunk indexer (Monitoring EC2) ──► teachua_infra index
+```
+
+- **Why a Universal Forwarder instead of extending Fluent Bit**: Fluent Bit tails container log files; it has no way to run OS-level metric collection commands (`vmstat`, `df`, etc.). A Universal Forwarder with scripted inputs is the standard, lightweight Splunk mechanism for this.
+- **Why not Splunk's official Add-on for Unix and Linux (Splunk_TA_nix)**: tried first, but it's Splunkbase-gated — confirmed via direct HTTP request that the download returns 401 without a Splunkbase account, and the environment building this doesn't have one. Rather than block on that, `teachua_infra_metrics` is a small self-authored Splunk app (`ansible/roles/splunk_forwarder/files/teachua_infra_metrics/`) with four shell scripts, each emitting a single JSON line per run:
+  - `cpu_metrics.sh` — parses `vmstat`'s cpu columns (indexed from the end of the line, robust to column-count drift across vmstat versions)
+  - `mem_metrics.sh` — parses `free -b`
+  - `disk_metrics.sh` — parses `df -B1`, one JSON line per real filesystem (tmpfs/devtmpfs/squashfs/overlay excluded)
+  - `net_metrics.sh` — computes a 1-second byte-rate delta per interface from `/proc/net/dev`'s cumulative counters (loopback excluded)
+
+  This has a real advantage over the add-on approach: since the fields are self-defined rather than a third-party add-on's internal (and unverifiable without a login) format, there's no field-name uncertainty — what's in the script is what's in the dashboard. All four scripts were tested against real command output in an actual Ubuntu 22.04 container before being committed.
+- **Why port 9997**: this is the classic Splunk-to-Splunk (S2S) forwarding protocol — different from the HEC/8088 path Fluent Bit uses. The Monitoring security group already had 9997 open from the App EC2 security group (planned early in Stage 8, unused until now) — no Terraform changes were needed.
+- **`teachua_infra` already existed** as one of the four original indexes — this reuses it rather than creating a new one. `sourcetype=_json` on all four inputs, same as the HEC/K8s log pipeline — no custom field-extraction knowledge needed on the indexer either.
+- **Ansible play order matters here**: `site.yml`'s `monitoring` play runs *before* the `app` play — the indexer must be listening on 9997 before the forwarder tries to connect and the role's own validation step (`splunk list forward-server`) checks it.
+
+Known noise: the network scripts will also report always-zero virtual tunnel interfaces (`tunl0`, `gre0`, `gretap0`, etc.) that some Linux kernels create by default from loaded kernel modules — confirmed present even in a stock Ubuntu 22.04 Docker container. The dashboard filters these out by name; extend the exclude list if new ones show up on the real EC2 kernel.
+
+---
+
+## Dashboards
+
+Deployed as a Splunk app (`ansible/roles/splunk/files/teachua_monitoring/`), visible in Splunk Web as **TeachUA Monitoring**:
 
 | Dashboard | Shows |
 |---|---|
-| TeachUA Overview | Total log volume, error/warning counts, request counts |
-| Backend Health | Backend errors, exceptions, API activity |
-| Frontend / Nginx | HTTP status codes, 404s, request count |
-| Kubernetes Pods | Pod logs filtered by namespace/app/container |
-| Deployment Visibility | Logs filtered by image tag or deployment time |
+| TeachUA Overview | Total log volume by container, error/warning count, logs over time |
+| Backend Health | Backend errors/exceptions table, backend log volume over time |
+| Frontend / Nginx | Request logs, HTTP status codes over time, 404 errors — using the structured fields from the JSON logging change above |
+| Kubernetes Pods | Logs by namespace, logs by pod |
+| Deployment Visibility | Recent logs and container activity in the `teachua` namespace, last hour |
+| Infrastructure Health | CPU/memory/disk usage over time, network activity by interface — from the Universal Forwarder + self-authored scripts above, `index=teachua_infra` |
 
-Start with log-based dashboards; metric-based panels can be added later.
+Shipped under `default/` (not `local/`) in the Splunk app — `local/` is where Splunk/admins write runtime overrides, so shipping there would risk the next Ansible run silently overwriting any live dashboard edit made via Splunk Web.
+
+Mostly log-based, as planned; Infrastructure Health is the first dashboard built on metric-style data.
 
 ---
 
@@ -231,19 +267,20 @@ A Kubernetes `CrashLoopBackOff` alert (originally sketched here) is deferred —
 
 ---
 
-## Jenkins Infrastructure CD changes (planned)
+## Jenkins Infrastructure CD changes
 
-The existing Infrastructure CD pipeline (see [jenkins.md](jenkins.md)) already applies Kubernetes manifests declaratively. It gains one more step:
+Four stages added after the normal app deploy (see [jenkins.md](jenkins.md) for the full flow):
 
-```text
-kubectl apply -f kubernetes/monitoring/
-```
+1. **Create Monitoring Namespace** — imperative `kubectl create namespace monitoring`, same pattern as the existing `teachua` namespace stage
+2. **Create Splunk HEC Secret** — uses the Jenkins `splunk-hec-token` credential to create `splunk-hec-secret` imperatively, mirroring how `ecr-registry-secret` is already handled (never committed to Git)
+3. **Deploy Fluent Bit** — applies the ServiceAccount/RBAC, ConfigMap, and DaemonSet
+4. **Verify Fluent Bit** — `kubectl rollout status daemonset/fluent-bit -n monitoring --timeout=120s` then `kubectl get pods -n monitoring`
 
-This only gets added to the pipeline once Splunk is installed and an HEC token exists — applying the Fluent Bit DaemonSet before Splunk can accept events would just produce a crash-looping/erroring pod.
+Ordering matters: the Secret must exist before Fluent Bit's pods try to mount it, or they sit in `CreateContainerConfigError` until Kubernetes retries once the Secret appears.
 
 ---
 
-## Recommended build order
+## Build order (as executed)
 
 1. Update Terraform for second EC2 + Monitoring security group
 2. `terraform apply` and verify both EC2 instances
@@ -252,17 +289,19 @@ This only gets added to the pipeline once Splunk is installed and an HEC token e
 5. Install Splunk on the monitoring EC2
 6. Open the Splunk Web UI on port 8000 and confirm login
 7. Configure the four indexes
-8. Configure the HEC token
+8. Configure the HEC token (hit the `vault_splunk_hec_token` undefined error here — see [troubleshooting.md](troubleshooting.md))
 9. Create the Fluent Bit manifests in `kubernetes/monitoring/`
-10. Deploy Fluent Bit to K3s
+10. Deploy Fluent Bit to K3s via Jenkins (hit the missing `splunk-hec-token` Jenkins credential here — see [troubleshooting.md](troubleshooting.md))
 11. Verify logs arrive in Splunk
 12. Create dashboards
 13. Add the alerts above
-14. Update the Jenkins Infrastructure CD pipeline to apply `kubernetes/monitoring/`
-15. Keep this document and the others listed below current
+14. Jenkins Infrastructure CD pipeline updated with the monitoring stages
+15. This document and the others listed below updated
+
+Recreating infra from scratch (destroy/apply) requires redoing steps 2, and re-pointing the ConfigMap's private IP (step 9's manifest) at the new value — see [Terraform changes](#terraform-changes) above. Steps 3–8 also need rerunning against fresh instances.
 
 ---
 
 ## Troubleshooting
 
-No issues logged yet — Splunk has not been provisioned. Once the steps above are executed, real issues and their resolutions get recorded here, following the same format as [troubleshooting.md](troubleshooting.md) (Symptoms / Root Cause / Resolution).
+See [troubleshooting.md](troubleshooting.md) — two real issues were hit and logged there during this build: the Ansible Vault variable and the missing Jenkins credential, both around keeping the HEC token in sync across Vault and Jenkins.

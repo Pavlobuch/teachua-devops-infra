@@ -1,0 +1,134 @@
+---
+- name: Create Splunk Forwarder group
+  ansible.builtin.group:
+    name: "{{ splunk_forwarder_group }}"
+    state: present
+  become: true
+
+- name: Create Splunk Forwarder user
+  ansible.builtin.user:
+    name: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    system: true
+    shell: /bin/bash
+    home: "{{ splunk_forwarder_install_dir }}"
+    create_home: false
+  become: true
+
+- name: Check if Splunk Forwarder binary is present
+  ansible.builtin.stat:
+    path: "{{ splunk_forwarder_install_dir }}/bin/splunk"
+  register: splunk_forwarder_binary
+  changed_when: false
+
+- name: Download Splunk Universal Forwarder binary
+  ansible.builtin.get_url:
+    url: "{{ splunk_forwarder_download_url }}"
+    dest: "/tmp/{{ splunk_forwarder_package }}"
+    mode: "0755"
+  when: not splunk_forwarder_binary.stat.exists
+
+- name: Install Splunk Universal Forwarder package
+  ansible.builtin.apt:
+    deb: "/tmp/{{ splunk_forwarder_package }}"
+    state: present
+  become: true
+  when: not splunk_forwarder_binary.stat.exists
+
+- name: Set ownership of Splunk Forwarder install directory
+  ansible.builtin.file:
+    path: "{{ splunk_forwarder_install_dir }}"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    recurse: true
+  become: true
+
+- name: Deploy user-seed.conf for admin credentials
+  ansible.builtin.template:
+    src: user-seed.conf.j2
+    dest: "{{ splunk_forwarder_install_dir }}/etc/system/local/user-seed.conf"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    mode: "0600"
+  become: true
+  when: not splunk_forwarder_binary.stat.exists
+
+- name: Enable Splunk Forwarder boot-start and accept license
+  ansible.builtin.command:
+    cmd: >-
+      {{ splunk_forwarder_install_dir }}/bin/splunk enable boot-start
+      -user {{ splunk_forwarder_user }}
+      --accept-license --answer-yes --no-prompt
+  become: true
+  when: not splunk_forwarder_binary.stat.exists
+  changed_when: true
+
+- name: Ensure Splunk Forwarder is started
+  ansible.builtin.command: "{{ splunk_forwarder_install_dir }}/bin/splunk start --accept-license --answer-yes --no-prompt"
+  become: true
+  changed_when: "'Starting splunk' in splunk_forwarder_start.stdout"
+  register: splunk_forwarder_start
+
+- name: Configure forwarding to the Splunk indexer
+  ansible.builtin.template:
+    src: outputs.conf.j2
+    dest: "{{ splunk_forwarder_install_dir }}/etc/system/local/outputs.conf"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    mode: "0644"
+  become: true
+  notify: Restart Splunk Forwarder
+
+- name: Deploy the teachua_infra_metrics app (self-authored, no third-party add-on)
+  ansible.builtin.copy:
+    src: teachua_infra_metrics/
+    dest: "{{ splunk_forwarder_install_dir }}/etc/apps/{{ splunk_forwarder_metrics_app_name }}/"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    mode: "0644"
+    directory_mode: "0755"
+  become: true
+  notify: Restart Splunk Forwarder
+
+- name: Make the metric collector scripts executable
+  ansible.builtin.file:
+    path: "{{ splunk_forwarder_install_dir }}/etc/apps/{{ splunk_forwarder_metrics_app_name }}/bin/{{ item }}"
+    mode: "0755"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+  become: true
+  loop: "{{ splunk_forwarder_metrics_scripts }}"
+
+- name: Enable the metric collector scripted inputs
+  ansible.builtin.template:
+    src: inputs.conf.j2
+    dest: "{{ splunk_forwarder_install_dir }}/etc/apps/{{ splunk_forwarder_metrics_app_name }}/default/inputs.conf"
+    owner: "{{ splunk_forwarder_user }}"
+    group: "{{ splunk_forwarder_group }}"
+    mode: "0644"
+  become: true
+  notify: Restart Splunk Forwarder
+
+- name: Flush handlers so forwarding is active before validating
+  ansible.builtin.meta: flush_handlers
+
+- name: Check configured forward servers
+  ansible.builtin.command:
+    cmd: >-
+      {{ splunk_forwarder_install_dir }}/bin/splunk list forward-server
+      -auth {{ splunk_forwarder_admin_username }}:{{ splunk_forwarder_admin_password }}
+  become: true
+  register: splunk_forwarder_forward_servers
+  changed_when: false
+  no_log: true
+
+- name: Assert the indexer is configured as a forward server
+  ansible.builtin.assert:
+    that:
+      - splunk_forwarder_indexer_host in splunk_forwarder_forward_servers.stdout
+    fail_msg: >-
+      Indexer {{ splunk_forwarder_indexer_host }}:{{ splunk_forwarder_indexer_s2s_port }}
+      not listed in forward-server output
+    success_msg: >-
+      Forwarding to {{ splunk_forwarder_indexer_host }}:{{ splunk_forwarder_indexer_s2s_port }}
+      confirmed
