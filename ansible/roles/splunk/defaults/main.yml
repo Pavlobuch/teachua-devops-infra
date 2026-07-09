@@ -11,3 +11,4 @@ splunk_admin_password: "{{ vault_splunk_admin_password }}"
 splunk_web_port: 8000
 splunk_hec_port: 8088
 splunk_hec_token: "{{ vault_splunk_hec_token }}"
+splunk_s2s_port: 9997

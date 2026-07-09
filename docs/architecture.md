@@ -223,6 +223,19 @@ Full design, including indexes and HEC setup, is in [monitoring.md](monitoring.m
 
 ---
 
+### Splunk Universal Forwarder
+
+Runs directly on the App EC2 (not in K3s) alongside K3s itself.
+
+Responsibilities:
+
+* Collect host-level CPU, memory, disk, and network metrics via self-authored scripted inputs (`teachua_infra_metrics`) — not Splunk's official Unix/Linux add-on, which turned out to be Splunkbase-gated
+* Forward them to the Splunk indexer over Splunk-to-Splunk (S2S, port 9997) — separate protocol and port from Fluent Bit's HEC path
+
+Full design is in [monitoring.md](monitoring.md#infrastructure-metrics-cpumemorydisknetwork).
+
+---
+
 ## Design Principles
 
 * Infrastructure as Code

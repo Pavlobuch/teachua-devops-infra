@@ -1,0 +1,118 @@
+<dashboard version="1.1">
+  <label>Infrastructure Health</label>
+
+  <row>
+    <panel>
+      <title>Data source health (verify this first)</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_infra
+            | stats count latest(_time) as last_seen by sourcetype
+            | eval last_seen=strftime(last_seen, "%Y-%m-%d %H:%M:%S")
+          </query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+      <option name="drilldown">none</option>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>CPU Usage (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_infra cpu_used_pct=*
+            | timechart avg(cpu_used_pct) as "CPU used %" avg(cpu_iowait_pct) as "IO wait %"
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Memory Usage</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_infra mem_used_pct=*
+            | timechart avg(mem_used_pct) as "Memory used %"
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Disk Usage by Mount (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_infra used_pct=* mount=*
+            | timechart avg(used_pct) by mount
+          </query>
+          <earliest>-6h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Disk Usage — latest snapshot</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_infra used_pct=* mount=*
+            | stats latest(used_pct) as "Used %" latest(avail_bytes) as "Available bytes" by filesystem, mount
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Network Activity (bytes/sec)</title>
+      <chart>
+        <search>
+          <query>
+            index=teachua_infra rx_bytes_per_sec=* interface=*
+            | search NOT interface IN (tunl0, gre0, gretap0, erspan0, ip_vti0, ip6_vti0, sit0, ip6tnl0, ip6gre0)
+            | timechart avg(rx_bytes_per_sec) as rx avg(tx_bytes_per_sec) as tx by interface
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Network Activity — latest by interface</title>
+      <table>
+        <search>
+          <query>
+            index=teachua_infra rx_bytes_per_sec=* interface=*
+            | search NOT interface IN (tunl0, gre0, gretap0, erspan0, ip_vti0, ip6_vti0, sit0, ip6tnl0, ip6gre0)
+            | stats latest(rx_bytes_per_sec) as "RX bytes/sec" latest(tx_bytes_per_sec) as "TX bytes/sec" by interface
+            | sort - "RX bytes/sec"
+          </query>
+          <earliest>-1h@h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

@@ -1,4 +1,12 @@
 ---
+- name: Provision monitoring EC2 instance
+  hosts: monitoring
+  become: true
+
+  roles:
+    - common
+    - splunk
+
 - name: Provision EC2 instance
   hosts: app
   become: true
@@ -8,11 +16,4 @@
     - docker
     - k3s_prerequisites
     - k3s
-
-- name: Provision monitoring EC2 instance
-  hosts: monitoring
-  become: true
-
-  roles:
-    - common
-    - splunk
+    - splunk_forwarder

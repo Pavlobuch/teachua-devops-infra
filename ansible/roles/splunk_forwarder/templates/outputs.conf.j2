@@ -1,0 +1,5 @@
+[tcpout]
+defaultGroup = teachua_indexers
+
+[tcpout:teachua_indexers]
+server = {{ splunk_forwarder_indexer_host }}:{{ splunk_forwarder_indexer_s2s_port }}

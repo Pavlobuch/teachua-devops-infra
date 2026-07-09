@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Stage 8 – Monitoring
+CI/CD Improvements (Stage 8 – Monitoring completed)
 
 ---
 
@@ -119,26 +119,27 @@ Stage 8 – Monitoring
 * Verified successful deployment
 * Application is accessible through Ingress
 
----
-
-## Planned Stages
-
 ### Stage 8 – Monitoring
 
 Full design in [monitoring.md](monitoring.md).
 
-* Update Terraform: second EC2, Monitoring security group, Splunk ports, remove stale Grafana rule, new outputs
-* Apply Terraform and verify both EC2 instances
-* Update Ansible inventory with `[app]` and `[monitoring]` groups
-* Create Ansible `splunk` role
-* Install Splunk on the monitoring EC2
-* Configure Splunk indexes (`teachua_app`, `teachua_k8s`, `teachua_infra`, `teachua_access`)
-* Configure Splunk HTTP Event Collector (HEC) and token
-* Create Fluent Bit Kubernetes manifests (`kubernetes/monitoring/`)
-* Deploy Fluent Bit DaemonSet to K3s and verify logs arrive in Splunk
-* Create Splunk dashboards
-* Add basic alerts (backend error rate, frontend 5xx, missing logs, CrashLoopBackOff)
-* Update Jenkins Infrastructure CD to apply monitoring manifests
+* Provisioned second EC2 instance (DB/Monitoring Server) via Terraform, with a dedicated Monitoring security group (22, 8000, 8088, 9997) and the stale Grafana rule removed
+* Added Ansible `[monitoring]` inventory group
+* Created and ran the Ansible `splunk` role — installs Splunk Enterprise, accepts license, seeds admin credentials, configures indexes, HEC, and deploys the `teachua_monitoring` Splunk app
+* Configured Splunk indexes (`teachua_app`, `teachua_k8s`, `teachua_infra`, `teachua_access`)
+* Configured Splunk HTTP Event Collector (HEC) with a Vault-stored token
+* Created Kubernetes manifests for Fluent Bit (`kubernetes/monitoring/`) and deployed the DaemonSet to K3s
+* Switched frontend Nginx access logs to JSON format so Splunk gets structured fields (status, request_uri, etc.)
+* Verified logs from backend, frontend, and MySQL pods arrive in Splunk
+* Created 6 Splunk dashboards (Overview, Backend Health, Frontend/Nginx, Kubernetes Pods, Deployment Visibility, Infrastructure Health)
+* Added 3 alerts (backend errors detected, no backend logs, frontend 5xx errors)
+* Updated Jenkins Infrastructure CD with `Create Monitoring Namespace`, `Create Splunk HEC Secret`, `Deploy Fluent Bit`, and `Verify Fluent Bit` stages
+* Verified end-to-end in production: dashboards populated with live data
+* Added the `splunk_forwarder` Ansible role (Universal Forwarder + self-authored `teachua_infra_metrics` scripts on the App EC2, not the Splunkbase-gated Splunk_TA_nix — no account available) feeding CPU/memory/disk/network metrics into `teachua_infra` over S2S (port 9997); scripts tested against real command output before commit, see [monitoring.md](monitoring.md#infrastructure-metrics-cpumemorydisknetwork)
+
+---
+
+## Planned Stages
 
 ### CI/CD Improvements
 
@@ -157,22 +158,10 @@ Full design in [monitoring.md](monitoring.md).
 
 ## Next Steps
 
-1. Update Terraform for second EC2 + Monitoring security group
+1. Configure GitHub Webhooks for automatic pipeline triggers
         ↓
-2. Apply Terraform and verify both EC2 instances
+2. Trigger deployment automatically after successful CI builds
         ↓
-3. Update Ansible inventory with `[app]` and `[monitoring]` groups
-        ↓
-4. Create Ansible `splunk` role and install Splunk on the monitoring EC2
-        ↓
-5. Configure Splunk indexes and HEC token
-        ↓
-6. Create and deploy Fluent Bit manifests to K3s, verify logs arrive in Splunk
-        ↓
-7. Create dashboards and alerts
-        ↓
-8. Update Jenkins Infrastructure CD to apply monitoring manifests
-        ↓
-9. Configure GitHub Webhooks for automatic pipeline triggers
+3. Stage 9 — documentation/architecture review and portfolio preparation
 
-See [monitoring.md](monitoring.md) for full detail on each step.
+See [monitoring.md](monitoring.md) for the full Stage 8 design and what was built.

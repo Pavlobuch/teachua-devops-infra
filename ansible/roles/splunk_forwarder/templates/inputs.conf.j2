@@ -1,0 +1,10 @@
+{# Scripted inputs for the self-authored teachua_infra_metrics app — each
+   script emits one (or more) JSON lines per run, parsed via sourcetype=_json. #}
+{% for script in splunk_forwarder_metrics_scripts %}
+[script://./bin/{{ script }}]
+disabled = 0
+index = {{ splunk_forwarder_infra_index }}
+sourcetype = _json
+interval = {{ splunk_forwarder_metrics_interval }}
+
+{% endfor %}

@@ -320,14 +320,18 @@ Update Deployment Images
 Wait for Rolling Update
 ↓
 Verify Deployment
+↓
+Create Monitoring Namespace
+↓
+Create Splunk HEC Secret
+↓
+Deploy Fluent Bit
+↓
+Verify Fluent Bit
 
-**Planned, Stage 8:** an additional step applies the monitoring manifests —
+The four monitoring stages (added for Stage 8) run after the normal app deploy. `Create Splunk HEC Secret` uses a Jenkins "Secret text" credential (`splunk-hec-token`) to create the `splunk-hec-secret` Kubernetes Secret imperatively — mirroring how `ecr-registry-secret` is already handled, never committed to Git. `Deploy Fluent Bit` applies the ServiceAccount/RBAC, ConfigMap, and DaemonSet from `kubernetes/monitoring/` (the namespace was already created by the preceding stage, so it's not re-applied from the manifest file). `Verify Fluent Bit` waits on the DaemonSet rollout and lists pods in the `monitoring` namespace. Full design in [monitoring.md](monitoring.md).
 
-```text
-kubectl apply -f kubernetes/monitoring/
-```
-
-This is added to the pipeline only after Splunk is installed and an HEC token exists (see [monitoring.md](monitoring.md)) — applying the Fluent Bit DaemonSet before Splunk can accept events would just produce a crash-looping pod.
+Note: `kubernetes/monitoring/` also lives under the `kubernetes/` tree that `Apply Kubernetes Manifests` already sweeps recursively, so those files get applied twice per run — harmless (idempotent) but worth knowing if the stage list looks redundant.
 
 ---
 
@@ -390,6 +394,4 @@ CI/CD improvements:
 - Configure GitHub Webhooks for automatic pipeline triggers
 - Trigger deployment after successful CI builds
 
-Monitoring (Stage 8) — see [monitoring.md](monitoring.md):
-
-- Add `kubectl apply -f kubernetes/monitoring/` to the Infrastructure CD pipeline once Splunk + HEC are ready
+Monitoring (Stage 8) is complete — see [monitoring.md](monitoring.md).

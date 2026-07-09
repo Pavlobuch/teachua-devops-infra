@@ -1,0 +1,25 @@
+---
+splunk_forwarder_version: "9.2.1"
+splunk_forwarder_build: "78803f08aabb"
+splunk_forwarder_package: "splunkforwarder-{{ splunk_forwarder_version }}-{{ splunk_forwarder_build }}-linux-2.6-amd64.deb"
+splunk_forwarder_download_base: https://download.splunk.com/products/universalforwarder/releases
+splunk_forwarder_download_url: "{{ splunk_forwarder_download_base }}/{{ splunk_forwarder_version }}/linux/{{ splunk_forwarder_package }}"
+splunk_forwarder_install_dir: /opt/splunkforwarder
+splunk_forwarder_user: splunkfwd
+splunk_forwarder_group: splunkfwd
+splunk_forwarder_admin_username: admin
+splunk_forwarder_admin_password: "{{ vault_splunk_admin_password }}"
+
+splunk_forwarder_indexer_host: "{{ splunk_indexer_private_ip }}"
+splunk_forwarder_indexer_s2s_port: 9997
+
+splunk_forwarder_infra_index: teachua_infra
+
+# Self-authored app (no Splunkbase add-on needed) — see files/teachua_infra_metrics/.
+splunk_forwarder_metrics_app_name: teachua_infra_metrics
+splunk_forwarder_metrics_interval: 60
+splunk_forwarder_metrics_scripts:
+  - cpu_metrics.sh
+  - mem_metrics.sh
+  - disk_metrics.sh
+  - net_metrics.sh
