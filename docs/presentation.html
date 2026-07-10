@@ -1,0 +1,479 @@
+<title>TeachUA — DevOps Portfolio</title>
+<style>
+  :root {
+    --bg: #eef1f2;
+    --bg-elevated: #ffffff;
+    --bg-inset: #e2e7e9;
+    --text: #161b1e;
+    --text-dim: #51616a;
+    --border: #d2d9dc;
+    --accent: #b96a17;
+    --accent-soft: #f1dcc0;
+    --accent-ink: #2c1c05;
+
+    --c-docker: #2f6fa3;
+    --c-terraform: #6a4fb0;
+    --c-ansible: #a8362d;
+    --c-jenkins: #a04a24;
+    --c-k8s: #22796d;
+    --c-splunk: #48793a;
+
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+    --shadow: 0 1px 2px rgba(20, 30, 34, 0.06), 0 8px 24px rgba(20, 30, 34, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10161a;
+      --bg-elevated: #171f23;
+      --bg-inset: #1d262a;
+      --text: #e9edee;
+      --text-dim: #92a3aa;
+      --border: #2a353b;
+      --accent: #e8a33d;
+      --accent-soft: #3a2c14;
+      --accent-ink: #fbe9cc;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10161a;
+    --bg-elevated: #171f23;
+    --bg-inset: #1d262a;
+    --text: #e9edee;
+    --text-dim: #92a3aa;
+    --border: #2a353b;
+    --accent: #e8a33d;
+    --accent-soft: #3a2c14;
+    --accent-ink: #fbe9cc;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f2;
+    --bg-elevated: #ffffff;
+    --bg-inset: #e2e7e9;
+    --text: #161b1e;
+    --text-dim: #51616a;
+    --border: #d2d9dc;
+    --accent: #b96a17;
+    --accent-soft: #f1dcc0;
+    --accent-ink: #2c1c05;
+    --shadow: 0 1px 2px rgba(20, 30, 34, 0.06), 0 8px 24px rgba(20, 30, 34, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: var(--accent); z-index: 50; transition: width .25s ease;
+  }
+
+  .deck {
+    display: flex;
+    height: 100dvh;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+  }
+  .deck::-webkit-scrollbar { display: none; }
+
+  .slide {
+    flex: 0 0 100dvw;
+    max-width: 100dvw;
+    height: 100dvh;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(1.75rem, 5vw, 4.5rem) clamp(1.75rem, 8vw, 7rem);
+    overflow-y: auto;
+  }
+
+  .slide-inner {
+    max-width: 68rem;
+    width: 100%;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .slide.active .slide-inner { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .slide-inner { transition: none; opacity: 1; transform: none; }
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    margin-bottom: 0.9rem;
+  }
+  .eyebrow .num { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  h1, h2 { font-family: var(--font-mono); font-weight: 600; text-wrap: balance; line-height: 1.15; margin: 0 0 0.6em; letter-spacing: -0.01em; }
+  .slide h2 { font-size: clamp(1.5rem, 3.2vw, 2.35rem); color: var(--text); }
+  .kicker { font-size: clamp(1rem, 1.6vw, 1.15rem); color: var(--text-dim); max-width: 46rem; line-height: 1.6; margin-bottom: 1.6rem; }
+
+  p, li { line-height: 1.65; font-size: 1rem; }
+  .lede { font-size: clamp(1.05rem, 1.6vw, 1.2rem); color: var(--text-dim); max-width: 52rem; line-height: 1.7; }
+
+  ul.bullets { list-style: none; margin: 1.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.85rem; max-width: 54rem; }
+  ul.bullets li { position: relative; padding-left: 1.4rem; }
+  ul.bullets li::before {
+    content: "›"; position: absolute; left: 0; top: 0;
+    color: var(--accent); font-family: var(--font-mono); font-weight: 700;
+  }
+  ul.bullets strong { color: var(--text); font-weight: 600; }
+  ul.bullets code, p code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-inset); padding: 0.12em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+
+  /* title slide */
+  .title-slide { justify-content: center; }
+  .prompt { font-family: var(--font-mono); color: var(--text-dim); font-size: 0.95rem; margin-bottom: 1.2rem; }
+  .prompt .accent { color: var(--accent); }
+  .title-slide h1 { font-size: clamp(2.4rem, 7vw, 4.6rem); }
+  .title-slide .lede { margin-top: 1rem; }
+  .stack-line { margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+  /* badges */
+  .badge {
+    font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.02em;
+    padding: 0.32rem 0.7rem; border-radius: 999px; border: 1px solid;
+    white-space: nowrap;
+  }
+
+  /* stack grid */
+  .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 1.6rem; }
+  .stack-cell { background: var(--bg-elevated); padding: 1.1rem 1.3rem; }
+  .stack-cell .role { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 0.4rem; }
+  .stack-cell .val { font-size: 0.98rem; }
+
+  /* architecture flow */
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 1.8rem 0; font-family: var(--font-mono); font-size: 0.92rem; }
+  .flow .node { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.9rem; box-shadow: var(--shadow); }
+  .flow .arrow { color: var(--accent); font-weight: 700; }
+
+  /* two column */
+  .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; margin-top: 1.4rem; }
+  @media (max-width: 780px) { .cols-2 { grid-template-columns: 1fr; } }
+  .col h3 { font-family: var(--font-mono); font-size: 0.95rem; color: var(--accent); margin: 0 0 0.7rem; }
+
+  /* troubleshooting cards */
+  .incident-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.9rem; margin-top: 1.6rem; }
+  .incident {
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.15rem; box-shadow: var(--shadow);
+  }
+  .incident .idx { font-family: var(--font-mono); color: var(--accent); font-size: 0.78rem; font-variant-numeric: tabular-nums; margin-bottom: 0.35rem; display: block; }
+  .incident p { font-size: 0.92rem; color: var(--text-dim); margin: 0; }
+  .incident strong { color: var(--text); }
+
+  /* cost list */
+  .cost-row { display: grid; grid-template-columns: minmax(180px, 260px) 1fr; gap: 1.2rem; padding: 0.95rem 0; border-top: 1px solid var(--border); align-items: baseline; }
+  .cost-row:last-child { border-bottom: 1px solid var(--border); }
+  .cost-row .tag { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); }
+  .cost-row p { margin: 0; font-size: 0.94rem; color: var(--text-dim); }
+  .cost-list { margin-top: 1.4rem; }
+
+  footer.nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.8rem 1.4rem; font-family: var(--font-mono); font-size: 0.8rem;
+    color: var(--text-dim); background: linear-gradient(to top, var(--bg) 60%, transparent);
+    pointer-events: none; z-index: 40;
+  }
+  footer.nav .navbtns { pointer-events: auto; display: flex; gap: 0.5rem; }
+  footer.nav button {
+    pointer-events: auto; font-family: var(--font-mono); font-size: 0.85rem;
+    background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.4rem 0.7rem; cursor: pointer;
+  }
+  footer.nav button:hover { border-color: var(--accent); color: var(--accent); }
+  footer.nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .counter { font-variant-numeric: tabular-nums; pointer-events: auto; }
+
+  .final-cta { margin-top: 2.2rem; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+  .final-cta .pill { font-family: var(--font-mono); font-size: 0.82rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.4rem 0.85rem; color: var(--text-dim); }
+</style>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+  <section class="slide title-slide" data-title="Intro">
+    <div class="slide-inner">
+      <div class="prompt">pavlo@teachua <span class="accent">~</span> % ./present --final</div>
+      <h1>TeachUA<br>DevOps Portfolio</h1>
+      <p class="lede">From a React + Spring Boot app on localhost to a monitored, self-provisioned deployment on AWS — every layer built, broken, and fixed by hand: Docker, Terraform, Ansible, Jenkins, K3s, Splunk.</p>
+      <div class="stack-line">
+        <span class="badge" style="border-color: var(--c-docker); color: var(--c-docker);">Docker</span>
+        <span class="badge" style="border-color: var(--c-terraform); color: var(--c-terraform);">Terraform</span>
+        <span class="badge" style="border-color: var(--c-ansible); color: var(--c-ansible);">Ansible</span>
+        <span class="badge" style="border-color: var(--c-jenkins); color: var(--c-jenkins);">Jenkins</span>
+        <span class="badge" style="border-color: var(--c-k8s); color: var(--c-k8s);">K3s</span>
+        <span class="badge" style="border-color: var(--c-splunk); color: var(--c-splunk);">Splunk</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Project Goal">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">01</span><span>Project Goal</span></div>
+      <h2>A portfolio built to show real ownership, not a checklist</h2>
+      <ul class="bullets">
+        <li>Demonstrate end-to-end DevOps skills for interviews: take a real full-stack app and own it from local dev through to a <strong>monitored, cloud-deployed environment</strong>.</li>
+        <li>Deliberately sized as one cost-optimized pipeline rather than an enterprise setup — the goal is depth across the toolchain, not scale nobody needs.</li>
+        <li>Every infra decision — <code>K3s vs EKS</code>, <code>Traefik vs ALB</code>, Splunk's deployment shape — was made and justified explicitly. See <em>Cost Optimization Decisions</em>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Stack">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">02</span><span>Application &amp; Tech Stack</span></div>
+      <h2>One app, six tools, a single-node deployment target</h2>
+      <div class="stack-grid">
+        <div class="stack-cell"><div class="role">Frontend</div><div class="val">React (Node 16), served via Nginx</div></div>
+        <div class="stack-cell"><div class="role">Backend</div><div class="val">Java 17 / Spring Boot (Maven), port 8080</div></div>
+        <div class="stack-cell"><div class="role">Database</div><div class="val">MySQL / MariaDB — <code>teachua2</code>, utf8_bin</div></div>
+        <div class="stack-cell"><div class="role">Containers</div><div class="val">Docker multi-stage builds + Compose for local dev</div></div>
+        <div class="stack-cell"><div class="role">IaC</div><div class="val">Terraform — VPC, EC2, ECR, IAM, security groups</div></div>
+        <div class="stack-cell"><div class="role">Config mgmt</div><div class="val">Ansible — common / docker / k3s / splunk roles</div></div>
+        <div class="stack-cell"><div class="role">CI/CD</div><div class="val">Jenkins (containerized) → ECR → K3s</div></div>
+        <div class="stack-cell"><div class="role">Orchestration</div><div class="val">K3s, single-node</div></div>
+        <div class="stack-cell"><div class="role">Monitoring</div><div class="val">Splunk Enterprise (Free), dedicated EC2</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Architecture">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">03</span><span>Target Architecture</span></div>
+      <h2>Two EC2 hosts, split by responsibility</h2>
+      <p class="lede">App Server (K3s + workloads) and Monitoring Server (Splunk) are separate instances — isolating indexing load from production traffic and giving each an independent lifecycle.</p>
+      <div class="flow">
+        <span class="node">Internet</span><span class="arrow">→</span>
+        <span class="node">EC2 public IP</span><span class="arrow">→</span>
+        <span class="node">Traefik</span><span class="arrow">→</span>
+        <span class="node">Ingress</span><span class="arrow">→</span>
+        <span class="node">Service</span><span class="arrow">→</span>
+        <span class="node">Pod</span>
+      </div>
+      <div class="flow">
+        <span class="node">App pods</span><span class="arrow">→</span>
+        <span class="node">Fluent Bit</span><span class="arrow">→</span>
+        <span class="node">Splunk HEC</span><span class="arrow">→</span>
+        <span class="node">Dashboards / Alerts</span>
+      </div>
+      <ul class="bullets">
+        <li>Images: Jenkins builds → pushes to private ECR → K3s pulls via an imagePullSecret refreshed on every deploy.</li>
+        <li>Secrets: Ansible Vault at provisioning time, Jenkins credentials at pipeline time, K8s Secrets created imperatively — never committed.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Docker">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">04</span><span>Local Dev → Docker → Compose</span></div>
+      <h2>Local parity is what caught the first real bug</h2>
+      <ul class="bullets">
+        <li>Multi-stage Dockerfiles: Maven build stage → slim JRE runtime for the backend; Node build → Nginx serve for the frontend.</li>
+        <li>Docker Compose wires frontend, backend, and MySQL together for local iteration before anything touches AWS.</li>
+        <li>That local-first discipline is exactly what exposed a subtle bug later: <code>REACT_APP_ROOT_SERVER=http://localhost:8080</code> baked in at build time — fine on a laptop, broken the moment the same image ran against a real backend on EC2.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Terraform">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">05</span><span>AWS with Terraform</span></div>
+      <h2>VPC, EC2, ECR, IAM — provisioned, reviewed, broken, fixed</h2>
+      <div class="cols-2">
+        <div class="col">
+          <h3>Built</h3>
+          <ul class="bullets">
+            <li>VPC, subnets, security groups, EC2 (App + Monitoring), ECR repos, IAM roles / instance profiles, gp3 volumes.</li>
+            <li>EC2 gets a role + instance profile, never embedded credentials; ECR access scoped read-only on the instance since Jenkins does the pushing.</li>
+          </ul>
+        </div>
+        <div class="col">
+          <h3>Caught &amp; fixed</h3>
+          <ul class="bullets">
+            <li>A Grafana security-group rule had <code>to_port = 22</code> instead of 3000 — caught in review before <code>apply</code>.</li>
+            <li>Real AWS API rejection: ECR lifecycle policy needed <code>tagStatus = "any"</code>, not <code>"tagged"</code> without a filter.</li>
+            <li><code>pathexpand()</code> needed for <code>~</code> in SSH key paths; key pair renames must happen before first <code>apply</code> — <code>key_name</code> is immutable.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Ansible">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">06</span><span>Server Provisioning with Ansible</span></div>
+      <h2>The failures that don't throw errors are the dangerous ones</h2>
+      <ul class="bullets">
+        <li>Five roles — <code>common</code>, <code>docker</code>, <code>k3s_prerequisites</code>, <code>k3s</code>, <code>splunk</code> — driven by one <code>site.yml</code> against a Terraform-sourced inventory.</li>
+        <li><strong>Recurring pattern: silent misconfiguration, not errors.</strong> Settings outside <code>[defaults]</code> in <code>ansible.cfg</code> were silently ignored; <code>become: true</code> nested inside module params passed lint but did nothing; an inventory group mismatch (<code>ec2</code> vs <code>app</code>) would have targeted zero hosts with no error at all.</li>
+        <li>One genuine live failure: <code>k3s_binary.stats.exists</code> — a typo for <code>.stat.exists</code> — threw a real <code>FAILED!</code> on the actual EC2.</li>
+        <li>Secrets went through Ansible Vault from the start, after an initial role plan was revised specifically because it had no vault strategy and no idempotency check.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Jenkins">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">07</span><span>CI/CD with Jenkins + ECR</span></div>
+      <h2>CI builds and pushes. CD deploys. Never the same pipeline.</h2>
+      <ul class="bullets">
+        <li>CI and CD deliberately split into separate pipelines and repos once it was clear deploy logic didn't belong inside the backend app repo.</li>
+        <li>CD automates the full imagePullSecret lifecycle every run: fetch ECR token → create/update the K8s docker-registry secret → patch the default ServiceAccount → apply manifests → verify rollout.</li>
+        <li>Hardest bugs lived in shell-quoting across local → SSH → remote-shell boundaries: an ECR password quoting bug I first got wrong and reversed after re-tracing it, and a <code>kubectl patch</code> JSON payload that arrived stripped of its quotes.</li>
+        <li>Building on Apple Silicon and deploying to an x86_64 EC2 node caused <code>ImagePullBackOff</code> — fixed with an explicit <code>--platform linux/amd64</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="K3s">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">08</span><span>Kubernetes on K3s</span></div>
+      <h2>Every YAML file had a case-sensitivity trap the first time through</h2>
+      <ul class="bullets">
+        <li>Namespace, Deployments, Services, ConfigMaps, Secrets, Ingress — hand-authored, applied via <code>kubectl apply -R</code>.</li>
+        <li><code>stringdata</code> vs <code>stringData</code>, <code>targetport</code> vs <code>targetPort</code>, mistyped <code>matchLabels</code> — most caught in review; one <code>metadata::</code> double-colon actually threw <code>resource name may not be empty</code> on the live cluster.</li>
+        <li>K3s already ships Traefik on 80/443, so an AWS ALB was deliberately skipped — see <em>Cost Optimization</em>.</li>
+        <li>Acknowledged tech debt: MySQL/JWT secrets are still plaintext K8s Secrets — External Secrets Operator, Sealed Secrets, and Vault Agent Injector were all scoped, none implemented yet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Splunk">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">09</span><span>Monitoring with Splunk</span></div>
+      <h2>Replaced Prometheus + Grafana — on purpose, not by accident</h2>
+      <ul class="bullets">
+        <li>One tool covering logs <em>and</em> dashboards is simpler to demo end-to-end in an interview than a two-tool stack — and Splunk/SPL is more directly relevant to enterprise ops/security roles.</li>
+        <li>Runs on its own dedicated EC2, not inside K3s — indexing is memory/CPU/disk-hungry and would contend with the app and database on one box.</li>
+        <li>Fluent Bit ships container logs over HEC; a Universal Forwarder ships host metrics from four self-authored scripts, after Splunk's official TA-nix add-on turned out to be gated behind a Splunkbase login.</li>
+        <li>A manifest apply-order bug (Fluent Bit files sorting before <code>namespace.yaml</code>) was fixed by prefixing the namespace file <code>00-</code>; a near-miss <code>*.example.yaml</code> secret rename — which <code>kubectl apply -R</code> would still have applied — was caught before it could leak a placeholder token into the cluster.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Troubleshooting">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">10</span><span>Problems Solved / Troubleshooting</span></div>
+      <h2>Real incidents, root-caused from actual error output</h2>
+      <div class="incident-grid">
+        <div class="incident"><span class="idx">01 — ansible</span><p><strong>Inventory swap put Splunk and K3s on the wrong boxes.</strong> Caught via a Jenkins <code>kubectl: command not found</code> failure; fixed by correcting inventory and recreating the contaminated EC2 via Terraform.</p></div>
+        <div class="incident"><span class="idx">02 — terraform</span><p><strong>ECR lifecycle policy rejected by AWS.</strong> <code>tagStatus=TAGGED</code> needs a tag filter; fixed with <code>tagStatus=any</code>.</p></div>
+        <div class="incident"><span class="idx">03 — terraform</span><p><strong>Security-group rule caught pre-apply.</strong> Grafana's <code>to_port</code> was 22 instead of 3000 — would have blocked monitoring while duplicating SSH exposure.</p></div>
+        <div class="incident"><span class="idx">04 — jenkins</span><p><strong>Cross-architecture image builds.</strong> arm64 images built on Apple Silicon failed on the amd64 node; fixed with <code>--platform linux/amd64</code>.</p></div>
+        <div class="incident"><span class="idx">05 — jenkins</span><p><strong>Shell-quoting lost across the SSH boundary.</strong> Both an ECR password and a <code>kubectl patch</code> JSON payload lost quoting crossing local → SSH → remote shell.</p></div>
+        <div class="incident"><span class="idx">06 — k3s</span><p><strong>Apply-ordering bug.</strong> Fluent Bit manifests applied before the <code>monitoring</code> namespace existed; fixed by forcing the namespace file first.</p></div>
+        <div class="incident"><span class="idx">07 — k3s</span><p><strong>Near-miss secrets leak.</strong> A <code>*.example.yaml</code> rename would still have been applied by <code>kubectl</code>, writing a placeholder token in as a real credential.</p></div>
+        <div class="incident"><span class="idx">08 — splunk</span><p><strong>Package collision after the inventory swap.</strong> Re-running Ansible hit an init.d boot-start collision; resolved with a clean Terraform recreate.</p></div>
+        <div class="incident"><span class="idx">09 — splunk</span><p><strong>Private IP instability across recreates.</strong> Fluent Bit's Splunk target IP is a literal value in a committed ConfigMap — no static pinning meant every recreate silently broke log shipping until fixed.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Cost">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">11</span><span>Cost Optimization Decisions</span></div>
+      <h2>Every tradeoff was a decision, not a default</h2>
+      <div class="cost-list">
+        <div class="cost-row"><span class="tag">K3s &gt; EKS</span><p>A managed control plane is unnecessary spend for a project sized to demonstrate skills, not serve real traffic.</p></div>
+        <div class="cost-row"><span class="tag">Traefik &gt; ALB</span><p>Saves roughly $20/month — K3s already binds 80/443 on the host, so a managed load balancer would be redundant for one node.</p></div>
+        <div class="cost-row"><span class="tag">Splunk, one EC2</span><p>Chosen for demo simplicity and portfolio relevance over a Prometheus + Grafana pair — still isolated from the app box to avoid resource contention.</p></div>
+        <div class="cost-row"><span class="tag">ECR lifecycle</span><p>Simplified to two rules — expire untagged after 14 days, keep the last 10 tagged — sized for portfolio churn, not copied from a production tier.</p></div>
+        <div class="cost-row"><span class="tag">t3.medium, kept</span><p>Flagged mid-project as oversized for the workload; kept for stability during active development — a deliberate "not yet" call, not an oversight.</p></div>
+        <div class="cost-row"><span class="tag">SSM, reconsidered</span><p>Initially rejected as unnecessary complexity on top of SSH + Ansible, then added back after reconsideration — a real design conversation, not default-everything.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="Final Result">
+    <div class="slide-inner">
+      <div class="eyebrow"><span class="num">12</span><span>Final Result + Next Improvements</span></div>
+      <h2>Shipped: an observable, self-deploying pipeline</h2>
+      <p class="lede"><code>git push</code> → Jenkins CI builds and pushes to ECR → Jenkins CD deploys to K3s with automated imagePullSecret refresh → the app runs behind Traefik on a public EC2 IP → Fluent Bit and a Splunk forwarder ship logs and host metrics to a dedicated Splunk instance with custom dashboards and alerts.</p>
+      <div class="final-cta">
+        <span class="pill">Real secrets manager (ESO / Sealed Secrets / Vault)</span>
+        <span class="pill">TLS on 443</span>
+        <span class="pill">Split Splunk indexes (app / infra / access)</span>
+        <span class="pill">Stable Service reference for the monitoring IP</span>
+        <span class="pill">IMAGE_TAG into environment{}</span>
+        <span class="pill">Right-size EC2 for steady state</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="nav">
+  <div class="navbtns">
+    <button id="prevBtn" aria-label="Previous slide">←</button>
+    <button id="nextBtn" aria-label="Next slide">→</button>
+  </div>
+  <span class="counter" id="counter">01 / 14</span>
+</footer>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const total = slides.length;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function updateFromScroll() {
+    const idx = Math.round(deck.scrollLeft / deck.clientWidth);
+    const clamped = Math.max(0, Math.min(total - 1, idx));
+    counter.textContent = pad(clamped + 1) + ' / ' + pad(total);
+    progress.style.width = ((clamped + 1) / total * 100) + '%';
+    slides.forEach((s, i) => s.classList.toggle('active', i === clamped));
+  }
+
+  let scrollTimer;
+  deck.addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(updateFromScroll, 50);
+  });
+
+  function goTo(i) {
+    const clamped = Math.max(0, Math.min(total - 1, i));
+    deck.scrollTo({ left: clamped * deck.clientWidth, behavior: 'smooth' });
+  }
+  function currentIndex() { return Math.round(deck.scrollLeft / deck.clientWidth); }
+
+  document.getElementById('prevBtn').addEventListener('click', () => goTo(currentIndex() - 1));
+  document.getElementById('nextBtn').addEventListener('click', () => goTo(currentIndex() + 1));
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goTo(currentIndex() + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goTo(currentIndex() - 1); }
+    if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+  });
+
+  window.addEventListener('resize', () => goTo(currentIndex()));
+  updateFromScroll();
+  slides[0].classList.add('active');
+</script>
