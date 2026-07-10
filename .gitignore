@@ -7,6 +7,7 @@
 *.tfstate.backup
 .terraform/
 *.tfvars
+*.terraform.lock.hcl
 
 #SSH keys
 *.pem
